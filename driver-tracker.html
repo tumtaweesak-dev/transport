@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TMS Pro - Driver GPS Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #111827;
+            --panel-dark: #1f2937;
+            --accent-primary: #3b82f6;
+            --accent-success: #10b981;
+            --accent-danger: #ef4444;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .header {
+            background-color: var(--panel-dark);
+            padding: 1rem;
+            text-align: center;
+            border-bottom: 2px solid rgba(255,255,255,0.05);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .header h1 { margin: 0; font-size: 1.5rem; color: var(--accent-primary); }
+        .container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+        .vehicle-info {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 320px;
+        }
+        .vehicle-info h2 { margin: 0 0 0.5rem 0; font-size: 2rem; color: #fff; letter-spacing: 2px; }
+        .vehicle-info p { margin: 0; color: var(--text-secondary); font-size: 1rem; }
+        
+        .status-indicator {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--panel-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin: 0 auto 1.5rem;
+            border: 4px solid var(--panel-dark);
+            transition: all 0.3s ease;
+        }
+        .status-indicator.offline { color: var(--text-secondary); }
+        .status-indicator.online { 
+            color: var(--accent-success); 
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+            animation: pulse-green 2s infinite;
+        }
+        
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .btn {
+            border: none;
+            border-radius: 50px;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            width: 100%;
+            max-width: 320px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-start { background: linear-gradient(135deg, var(--accent-primary), #2563eb); }
+        .btn-stop { background: linear-gradient(135deg, var(--accent-danger), #b91c1c); display: none; }
+        
+        .log-area {
+            margin-top: 2rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: #000;
+            padding: 1rem;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 320px;
+            text-align: left;
+            height: 100px;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.05);
+            font-family: monospace;
+        }
+        .log-area p { margin: 0 0 4px 0; }
+        .log-success { color: var(--accent-success); }
+        .log-error { color: var(--accent-danger); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1><i class="fa-solid fa-truck-fast"></i> TMS Pro Tracker</h1>
+    </div>
+
+    <div class="container">
+        <div class="status-indicator offline" id="statusIcon"><i class="fa-solid fa-satellite-dish"></i></div>
+        
+        <div class="vehicle-info">
+            <h2 id="vehiclePlate">----</h2>
+            <p id="vehicleVid">Vehicle ID: ----</p>
+        </div>
+
+        <button class="btn btn-start" id="btnStart"><i class="fa-solid fa-play"></i> เริ่มส่งตำแหน่ง GPS</button>
+        <button class="btn btn-stop" id="btnStop"><i class="fa-solid fa-stop"></i> หยุดส่งตำแหน่ง</button>
+        <button class="btn btn-share" id="btnShareMap" style="background: linear-gradient(135deg, #10b981, #059669); margin-top: 10px; display: none;"><i class="fa-solid fa-map-location-dot"></i> เปิดใน Google Maps</button>
+
+        <div class="log-area" id="logArea">
+            <p>> รอการเชื่อมต่อ...</p>
+        </div>
+    </div>
+
+    <script>
+        // Extract URL Parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const vid = urlParams.get('vid') || 'UNKNOWN';
+        const plate = urlParams.get('plate') || 'ไม่ระบุทะเบียน';
+
+        document.getElementById('vehiclePlate').textContent = plate;
+        document.getElementById('vehicleVid').textContent = 'VID: ' + vid;
+
+        let watchId = null;
+        let currentLat = null;
+        let currentLng = null;
+        const btnStart = document.getElementById('btnStart');
+        const btnStop = document.getElementById('btnStop');
+        const btnShareMap = document.getElementById('btnShareMap');
+        const statusIcon = document.getElementById('statusIcon');
+        const logArea = document.getElementById('logArea');
+
+        btnShareMap.addEventListener('click', () => {
+            if (currentLat !== null && currentLng !== null) {
+                const url = `https://www.google.com/maps/dir/?api=1&destination=${currentLat},${currentLng}`;
+                window.open(url, '_blank');
+            } else {
+                alert('ยังไม่ได้รับตำแหน่ง GPS ล่าสุด');
+            }
+        });
+
+        function addLog(msg, type = 'normal') {
+            const p = document.createElement('p');
+            const time = new Date().toLocaleTimeString('th-TH');
+            p.textContent = `[${time}] ${msg}`;
+            if(type === 'success') p.className = 'log-success';
+            if(type === 'error') p.className = 'log-error';
+            logArea.prepend(p);
+        }
+
+        async function sendGPSData(lat, lng) {
+            try {
+                const response = await fetch('/api/gps', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vid, lat, lng })
+                });
+                if(response.ok) {
+                    addLog(`📍 อัปเดตพิกัด: ${lat.toFixed(5)}, ${lng.toFixed(5)}`, 'success');
+                } else {
+                    addLog('❌ ส่งข้อมูลล้มเหลว', 'error');
+                }
+            } catch (error) {
+                addLog('❌ เชื่อมต่อเซิร์ฟเวอร์ไม่ได้', 'error');
+            }
+        }
+
+        btnStart.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                alert('เบราว์เซอร์ของคุณไม่รองรับ GPS');
+                return;
+            }
+
+            btnStart.style.display = 'none';
+            btnStop.style.display = 'flex';
+            statusIcon.classList.remove('offline');
+            statusIcon.classList.add('online');
+            addLog('✅ เริ่มการติดตาม GPS...', 'success');
+
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    currentLat = latitude;
+                    currentLng = longitude;
+                    btnShareMap.style.display = 'flex';
+                    sendGPSData(latitude, longitude);
+                },
+                (error) => {
+                    let msg = '';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED: msg = 'ถูกปฏิเสธสิทธิเข้าถึง GPS'; break;
+                        case error.POSITION_UNAVAILABLE: msg = 'ไม่มีข้อมูลตำแหน่ง'; break;
+                        case error.TIMEOUT: msg = 'หมดเวลาเชื่อมต่อ GPS'; break;
+                        default: msg = 'เกิดข้อผิดพลาดในการดึงพิกัด'; break;
+                    }
+                    addLog(`❌ Error: ${msg}`, 'error');
+                    stopTracking();
+                    alert(msg);
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 10000
+                }
+            );
+        });
+
+        function stopTracking() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            btnStart.style.display = 'flex';
+            btnStop.style.display = 'none';
+            btnShareMap.style.display = 'none';
+            statusIcon.classList.remove('online');
+            statusIcon.classList.add('offline');
+            addLog('⏸ หยุดส่งตำแหน่งแล้ว');
+        }
+
+        btnStop.addEventListener('click', stopTracking);
+    </script>
+</body>
+</html>

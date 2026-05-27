@@ -1,0 +1,3224 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Navigation Logic
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const sections = document.querySelectorAll('.view-section');
+    const pageTitle = document.getElementById('page-title');
+
+    const titles = {
+        'dashboard': { text: 'แดชบอร์ดภาพรวม (Dashboard)', icon: 'fa-chart-line' },
+        'travel-plan': { text: 'วางแผนการเดินทาง (Shipment Planning)', icon: 'fa-map-location-dot' },
+        'manager-approval': { text: 'อนุมัติโดยหัวหน้า (Mgr Approval)', icon: 'fa-user-tie' },
+        'hr-approval': { text: 'ตรวจสอบโดย HR (HR Check)', icon: 'fa-users-gear' },
+        'md-approval': { text: 'อนุมัติโดย MD (MD Approval)', icon: 'fa-user-tie' },
+        'accounting-approval': { text: 'พนักงานบัญชีทำจ่าย (Accounting)', icon: 'fa-file-invoice-dollar' },
+        'car-booking': { text: 'จองรถ (Car Booking)', icon: 'fa-calendar-check' },
+        'car-arrangement': { text: 'จัดรถ (Car Arrangement)', icon: 'fa-truck-ramp-box' },
+        'packing': { text: 'จัดเรียงสินค้า (Load Planning)', icon: 'fa-box-open' },
+        'admin-settings': { text: 'ข้อมูลรถ (Vehicle Registry)', icon: 'fa-truck' },
+        'route-optimization': { text: 'จัดการเส้นทางเดินรถ (Route Optimization)', icon: 'fa-route' },
+        'delivery-scheduling': { text: 'ตารางเวลาส่งมอบ (Delivery Scheduling)', icon: 'fa-clock' },
+        'import-orders': { text: 'นำเข้าออเดอร์ (Import Orders)', icon: 'fa-file-import' },
+        'fleet-management': { text: 'จัดการยานพาหนะ (Fleet Management)', icon: 'fa-truck-moving' },
+        'maintenance-schedule': { text: 'ตารางซ่อมบำรุง (Maintenance Schedule)', icon: 'fa-calendar-alt' },
+        'fuel-log': { text: 'บันทึกค่าน้ำมัน (Fuel Log)', icon: 'fa-gas-pump' },
+        'shipment-tracking': { text: 'ติดตามสถานะ (Shipment Tracking)', icon: 'fa-satellite-dish' },
+        'exceptions-handling': { text: 'จัดการปัญหา (Exceptions Handling)', icon: 'fa-triangle-exclamation' },
+        'maintenance': { text: 'ตารางซ่อมบำรุง (Maintenance)', icon: 'fa-wrench' },
+        'fuel': { text: 'จัดการค่าน้ำมัน (Fuel Management)', icon: 'fa-gas-pump' }
+    };
+
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            console.log('Menu clicked:', btn.getAttribute('data-target'), e.target);
+            try {
+                // Remove active class from all buttons and sections
+                navButtons.forEach(b => b.classList.remove('active'));
+                sections.forEach(s => s.classList.remove('active'));
+
+                // Add active class to clicked button and target section
+                btn.classList.add('active');
+                const targetId = btn.getAttribute('data-target');
+                const targetEl = targetId ? document.getElementById(targetId) : null;
+                
+                if (targetEl) {
+                    targetEl.classList.add('active');
+                } else {
+                    console.warn('Target section not found for id:', targetId);
+                }
+
+                // Update Header Title
+                if (titles[targetId]) {
+                    pageTitle.innerHTML = `<i class="fa-solid ${titles[targetId].icon}"></i> ${titles[targetId].text}`;
+                }
+
+                // Fix Leaflet map sizing bug when switching tabs
+                if(targetId === 'dashboard' && typeof dashboardMap !== 'undefined' && dashboardMap) {
+                    setTimeout(() => {
+                        dashboardMap.invalidateSize();
+                    }, 50);
+                }
+                
+                if(targetId === 'route-optimization' && window.optMap) {
+                    setTimeout(() => {
+                        window.optMap.invalidateSize();
+                    }, 50);
+                }
+            } catch (err) {
+                console.error('Error in menu click handler:', err);
+            }
+        });
+    });
+
+    // -- Sidebar Accordion Logic --
+    const moduleTitles = document.querySelectorAll('.nav-module-title');
+    moduleTitles.forEach(title => {
+        title.addEventListener('click', () => {
+            const parentModule = title.closest('.nav-module');
+            if (parentModule) {
+                parentModule.classList.toggle('collapsed');
+            }
+        });
+    });
+
+    // -- Fuel Prices & Expense Logic --
+    const dailyFuelPrices = {
+        '95': { name: 'เบนซิน/แก๊สโซฮอล์ 95', price: 36.55, icon: 'fa-gas-pump', color: '#ef4444' },
+        '91': { name: 'แก๊สโซฮอล์ 91', price: 36.28, icon: 'fa-gas-pump', color: '#f59e0b' },
+        'e20': { name: 'E20', price: 34.44, icon: 'fa-gas-pump', color: '#10b981' },
+        'diesel': { name: 'ดีเซล (Diesel)', price: 32.94, icon: 'fa-gas-pump', color: '#3b82f6' },
+        'ev': { name: 'ชาร์จไฟฟ้า (EV)', price: 7.50, icon: 'fa-bolt', color: '#8b5cf6' }
+    };
+
+    function renderDashboardFuelPriceTable() {
+        const container = document.getElementById('dashboard-fuel-price-table');
+        if (!container) return;
+
+        const updatedAt = new Date().toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        container.innerHTML = `
+            <div class="fuel-price-sync-header">
+                <span><i class="fa-solid fa-table-list"></i> ตารางราคาที่ใช้คำนวณ</span>
+                <small>อัปเดต ${updatedAt}</small>
+            </div>
+            <div class="fuel-price-sync-list">
+                ${Object.entries(dailyFuelPrices).map(([key, item]) => `
+                    <button type="button" class="fuel-price-row" data-fuel-key="${key}" data-fuel-price="${item.price}">
+                        <span class="fuel-price-name">
+                            <i class="fa-solid ${item.icon}" style="color: ${item.color};"></i>
+                            ${item.name}
+                        </span>
+                        <strong>${item.price.toFixed(2)}</strong>
+                    </button>
+                `).join('')}
+            </div>
+            <small class="fuel-price-sync-note">หมายเหตุ: iframe บางจากเป็นข้อมูลอ้างอิงภายนอก ส่วนตารางนี้คือราคาที่ระบบนำไปคำนวณในฟอร์ม</small>
+        `;
+    }
+
+    function getDashboardFuelPrice(fuelType) {
+        const row = document.querySelector(`[data-fuel-key="${fuelType}"]`);
+        if (row && row.dataset.fuelPrice) {
+            const price = parseFloat(row.dataset.fuelPrice);
+            if (Number.isFinite(price)) return price;
+        }
+
+        return dailyFuelPrices[fuelType] ? dailyFuelPrices[fuelType].price : 0;
+    }
+
+    function calculateExpenses() {
+        const fQty = document.getElementById('fuel-qty');
+        const fPrice = document.getElementById('fuel-price');
+        const fTotal = document.getElementById('fuel-total');
+        
+        const aQty = document.getElementById('acc-qty');
+        const aPrice = document.getElementById('acc-price');
+        const aTotal = document.getElementById('acc-total');
+        
+        const gTotal = document.getElementById('grand-total');
+
+        let fSum = 0;
+        let aSum = 0;
+        
+        if (fQty && fPrice && fTotal) {
+            fSum = (parseFloat(fQty.value) || 0) * (parseFloat(fPrice.value) || 0);
+            fTotal.textContent = fSum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+        
+        if (aQty && aPrice && aTotal) {
+            aSum = (parseFloat(aQty.value) || 0) * (parseFloat(aPrice.value) || 0);
+            aTotal.textContent = aSum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+        
+        if (gTotal) {
+            const sum = fSum + aSum;
+            gTotal.textContent = sum.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' บาท';
+        }
+    }
+
+    function initFuelPrices() {
+        renderDashboardFuelPriceTable();
+
+        // Bind logic to Travel Plan inputs
+        const fuelTypeSelect = document.getElementById('fuel-type');
+        const fuelPriceInput = document.getElementById('fuel-price');
+        
+        if (fuelTypeSelect && fuelPriceInput) {
+            const updateFuelPrice = () => {
+                const selected = fuelTypeSelect.value;
+                if (dailyFuelPrices[selected]) {
+                    fuelPriceInput.value = getDashboardFuelPrice(selected).toFixed(2);
+                    calculateExpenses();
+                }
+            };
+            
+            // Initial binding
+            updateFuelPrice();
+            fuelTypeSelect.addEventListener('change', updateFuelPrice);
+            fuelPriceInput.addEventListener('input', calculateExpenses);
+
+            document.querySelectorAll('.fuel-price-row').forEach(row => {
+                row.addEventListener('click', () => {
+                    fuelTypeSelect.value = row.dataset.fuelKey;
+                    updateFuelPrice();
+                    const travelPlanBtn = document.querySelector('.nav-btn[data-target="travel-plan"]');
+                    if (travelPlanBtn) travelPlanBtn.click();
+                });
+            });
+        }
+
+        // Attach listeners to other `.calc-input` fields for live updates
+        document.querySelectorAll('.calc-input').forEach(input => {
+            if (input.id !== 'fuel-price') { // Skip binding twice
+                input.addEventListener('input', calculateExpenses);
+            }
+        });
+    }
+
+    // 2. Travel Plan: Dynamic Travelers
+    const btnAddTraveler = document.getElementById('btn-add-traveler');
+    const travelersList = document.getElementById('travelers-list');
+    let travelerCount = 1;
+
+    if (btnAddTraveler && travelersList) {
+        btnAddTraveler.addEventListener('click', () => {
+        travelerCount++;
+        const newTraveler = document.createElement('div');
+        newTraveler.className = 'traveler-card glass-panel-inner mb-3 fade-in';
+        newTraveler.innerHTML = `
+            <div class="card-header flex-between">
+                <h4><i class="fa-solid fa-user"></i> ผู้เดินทางคนที่ ${travelerCount}</h4>
+                <button type="button" class="btn-icon text-danger btn-remove-traveler"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <div class="form-row split-row mt-3">
+                <div class="input-group">
+                    <label>รหัสพนักงาน</label>
+                    <input type="text" placeholder="ระบุรหัสพนักงาน" required>
+                </div>
+                <div class="input-group">
+                    <label>ชื่อ - นามสกุล</label>
+                    <input type="text" placeholder="ระบุชื่อและนามสกุล" required>
+                </div>
+            </div>
+            <div class="form-row split-row mt-3">
+                <div class="input-group">
+                    <label>แผนก</label>
+                    <input type="text" placeholder="ระบุแผนก" required>
+                </div>
+                <div class="input-group">
+                    <label>ตำแหน่ง</label>
+                    <input type="text" placeholder="ระบุตำแหน่ง" required>
+                </div>
+            </div>
+            <div class="form-row split-row mt-3">
+                <div class="input-group">
+                    <label>เบอร์โทรศัพท์</label>
+                    <input type="tel" placeholder="08X-XXX-XXXX" required>
+                </div>
+                <div class="input-group">
+                    <label>รายละเอียดการเดินทาง (Comment)</label>
+                    <input type="text" placeholder="ระบุรายละเอียดเพิ่มเติม">
+                </div>
+            </div>
+        `;
+        travelersList.appendChild(newTraveler);
+        
+        newTraveler.querySelector('.btn-remove-traveler').addEventListener('click', function() {
+            newTraveler.remove();
+            updateTravelerLabels();
+        });
+        });
+    }
+
+    function updateTravelerLabels() {
+        const rows = travelersList.querySelectorAll('.traveler-card');
+        travelerCount = rows.length;
+        rows.forEach((row, index) => {
+            const label = row.querySelector('h4');
+            label.innerHTML = `<i class="fa-solid fa-user"></i> ผู้เดินทางคนที่ ${index + 1}`;
+        });
+    }
+
+    // 3. Travel Plan: Dynamic Destinations & Distance Calculation
+    const btnAddDestination = document.getElementById('btn-add-destination');
+    const destinationsList = document.getElementById('destinations-list');
+    const totalDistanceEl = document.getElementById('total-distance');
+    let destinationCount = 1;
+
+    function syncFuelDistanceFromRoute(distanceKm) {
+        const fuelDistanceInput = document.getElementById('fuel-qty');
+        if (!fuelDistanceInput) return;
+
+        const safeDistance = Number.isFinite(distanceKm) ? distanceKm : 0;
+        fuelDistanceInput.value = safeDistance > 0 ? safeDistance.toFixed(2) : '';
+        fuelDistanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    function calculateTotalDistance() {
+        let total = 0;
+        document.querySelectorAll('.distance-input').forEach(input => {
+            let val = parseFloat(input.value);
+            if (!isNaN(val)) total += val;
+        });
+        if (totalDistanceEl) {
+            totalDistanceEl.textContent = total.toFixed(2);
+        }
+        syncFuelDistanceFromRoute(total);
+    }
+
+    // Bind event to first initial distance input
+    const initialDistanceInput = document.querySelector('.distance-input');
+    if (initialDistanceInput) {
+        initialDistanceInput.addEventListener('input', calculateTotalDistance);
+    }
+
+    if (btnAddDestination && destinationsList) {
+        btnAddDestination.addEventListener('click', () => {
+        destinationCount++;
+        const newDest = document.createElement('div');
+        newDest.className = 'site-card glass-panel-inner mb-3 dest-site fade-in';
+        newDest.innerHTML = `
+            <div class="card-header flex-between">
+                <h4><i class="fa-solid fa-flag-checkered text-accent"></i> ปลายทางที่ ${destinationCount}</h4>
+                <button type="button" class="btn-icon text-danger btn-remove-dest"><i class="fa-solid fa-trash"></i></button>
+            </div>
+            <div class="form-row split-row mt-3">
+                <div class="input-group">
+                    <label>รหัสโครงการ</label>
+                    <input type="text" placeholder="ระบุรหัส" required>
+                </div>
+                <div class="input-group">
+                    <label>ชื่อโครงการ / สถานที่</label>
+                    <input type="text" placeholder="ระบุชื่อสถานที่" required>
+                </div>
+            </div>
+            <div class="form-row mt-3">
+                <div class="input-group">
+                    <label><i class="fa-brands fa-google"></i> Google Map Link หรือ พิกัด</label>
+                    <div class="input-with-action">
+                        <input type="text" class="map-link-input" placeholder="คลิกปุ่มเพื่อเลือกสถานที่" readonly required>
+                        <button type="button" class="btn-icon text-accent btn-open-map" title="เลือกจากแผนที่"><i class="fa-solid fa-map-location-dot"></i></button>
+                        <button type="button" class="btn-icon text-accent btn-check-route" title="เช็คระยะทาง"><i class="fa-solid fa-route"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="form-row split-row mt-3">
+                <div class="input-group">
+                    <label>ระยะทางจากจุดก่อนหน้า (กม.)</label>
+                    <input type="number" class="distance-input" placeholder="0.00" min="0" step="0.1" required>
+                </div>
+            </div>
+        `;
+        destinationsList.appendChild(newDest);
+
+        newDest.querySelector('.btn-remove-dest').addEventListener('click', function() {
+            newDest.remove();
+            updateDestinationLabels();
+            calculateTotalDistance();
+        });
+        
+        newDest.querySelector('.distance-input').addEventListener('input', calculateTotalDistance);
+        });
+    }
+
+    function updateDestinationLabels() {
+        const rows = destinationsList.querySelectorAll('.dest-site');
+        destinationCount = rows.length;
+        rows.forEach((row, index) => {
+            const label = row.querySelector('h4');
+            label.innerHTML = `<i class="fa-solid fa-flag-checkered text-accent"></i> ปลายทางที่ ${index + 1}`;
+        });
+    }
+
+    // 4. Expenses Calculation
+    const calcInputs = document.querySelectorAll('.calc-input');
+    const fuelQty = document.getElementById('fuel-qty');
+    const fuelPrice = document.getElementById('fuel-price');
+    const fuelTotalEl = document.getElementById('fuel-total');
+    
+    const accQty = document.getElementById('acc-qty');
+    const accPrice = document.getElementById('acc-price');
+    const accTotalEl = document.getElementById('acc-total');
+    
+    const grandTotalEl = document.getElementById('grand-total');
+
+    if (fuelQty) {
+        fuelQty.readOnly = true;
+        fuelQty.title = 'ระยะทางรวมจากการคำนวณแผนที่';
+    }
+
+    function calculateExpenses() {
+        // Fuel
+        let fQ = parseFloat(fuelQty.value) || 0;
+        let fP = parseFloat(fuelPrice.value) || 0;
+        let fuelTotal = fQ * fP;
+        fuelTotalEl.textContent = fuelTotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        // Accommodation
+        let aQ = parseFloat(accQty.value) || 0;
+        let aP = parseFloat(accPrice.value) || 0;
+        let accTotal = aQ * aP;
+        accTotalEl.textContent = accTotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        // Grand Total
+        let grandTotal = fuelTotal + accTotal;
+        grandTotalEl.textContent = grandTotal.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' บาท';
+    }
+
+    calcInputs.forEach(input => {
+        input.addEventListener('input', calculateExpenses);
+    });
+
+    // === Car Booking Logic: Toggle Types and Dynamic Destinations ===
+    const bookingTypeSelect = document.getElementById('booking-type-select');
+    const bookingAdminSection = document.getElementById('booking-admin-section');
+    const bookingDeliverySection = document.getElementById('booking-delivery-section');
+    const adminReqs = document.querySelectorAll('.admin-req');
+    const deliveryReqs = document.querySelectorAll('.delivery-req');
+
+    if (bookingTypeSelect) {
+        bookingTypeSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'admin') {
+                bookingAdminSection.style.display = 'block';
+                bookingDeliverySection.style.display = 'none';
+                adminReqs.forEach(el => el.setAttribute('required', 'true'));
+                deliveryReqs.forEach(el => el.removeAttribute('required'));
+            } else {
+                bookingAdminSection.style.display = 'none';
+                bookingDeliverySection.style.display = 'block';
+                adminReqs.forEach(el => el.removeAttribute('required'));
+                deliveryReqs.forEach(el => el.setAttribute('required', 'true'));
+            }
+        });
+    }
+
+    const btnAddDeliveryDest = document.getElementById('btn-add-delivery-dest');
+    const deliveryDestinationsList = document.getElementById('delivery-destinations-list');
+    let deliveryDestCount = 1;
+
+    if (btnAddDeliveryDest) {
+        btnAddDeliveryDest.addEventListener('click', () => {
+            deliveryDestCount++;
+            const newDest = document.createElement('div');
+            newDest.className = 'site-card glass-panel-inner mb-3 delivery-dest-site fade-in';
+            newDest.innerHTML = `
+                <div class="card-header flex-between mb-2">
+                    <h4>ปลายทางที่ ${deliveryDestCount}</h4>
+                    <button type="button" class="btn-icon text-danger btn-remove-del-dest"><i class="fa-solid fa-trash"></i></button>
+                </div>
+                <div class="form-row split-row mt-3">
+                    <div class="input-group">
+                        <label>โครงการ</label>
+                        <input type="text" placeholder="ระบุโครงการ" class="delivery-req" required>
+                    </div>
+                    <div class="input-group">
+                        <label>หมายเหตุ</label>
+                        <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)">
+                    </div>
+                </div>
+                <div class="form-row mt-3">
+                    <div class="input-group">
+                        <label>ชื่อสถานที่ หรือ พิกัดปลายทาง</label>
+                        <div class="input-with-action">
+                            <input type="text" class="map-link-input delivery-req" placeholder="คลิกเพื่อเลือกสถานที่" readonly required>
+                            <button type="button" class="btn-icon text-accent btn-open-map"><i class="fa-solid fa-map-location-dot"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            deliveryDestinationsList.appendChild(newDest);
+
+            newDest.querySelector('.btn-remove-del-dest').addEventListener('click', function() {
+                newDest.remove();
+                if (window.updateDeliveryDestLabels) window.updateDeliveryDestLabels();
+            });
+        });
+    }
+
+    window.updateDeliveryDestLabels = function() {
+        if (!deliveryDestinationsList) return;
+        const rows = deliveryDestinationsList.querySelectorAll('.delivery-dest-site');
+        deliveryDestCount = rows.length;
+        rows.forEach((row, index) => {
+            const label = row.querySelector('h4');
+            if (label) label.textContent = `ปลายทางที่ ${index + 1}`;
+        });
+    };
+
+    // 3. Car Arrangement: Dynamic Packing List
+    const btnAddPacking = document.getElementById('btn-add-packing');
+    const packingListBody = document.getElementById('packing-list-body');
+
+    if (btnAddPacking && packingListBody) {
+        btnAddPacking.addEventListener('click', () => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" placeholder="ระบุชื่อรายการ" required class="table-input"></td>
+            <td><input type="number" min="1" value="1" required class="table-input"></td>
+            <td><input type="number" min="0" step="0.1" placeholder="น้ำหนัก" class="table-input"></td>
+            <td><button type="button" class="btn-icon text-danger btn-remove-row"><i class="fa-solid fa-trash"></i></button></td>
+        `;
+        packingListBody.appendChild(tr);
+
+        // Add event listener to remove button
+        tr.querySelector('.btn-remove-row').addEventListener('click', function() {
+            tr.remove();
+        });
+        });
+    }
+
+    // Add event listener to initial remove button in packing list (if any)
+    if (packingListBody) {
+        const initialRemoveBtns = packingListBody.querySelectorAll('.btn-remove-row, .text-danger');
+        initialRemoveBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const row = this.closest('tr');
+                if (row) row.remove();
+            });
+        });
+    }
+    
+    // Form submit handlers
+    document.querySelectorAll('.dynamic-form').forEach(form => {
+        if(form.id === 'form-car-booking' || form.id === 'form-car-arrangement') return; // Handled separately
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            
+            // --- Custom Logic for Admin Forms ---
+            if (form.id === 'form-admin-user') {
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+                try {
+                    const data = {
+                        employeeId: document.getElementById('admin-emp-id').value,
+                        name: document.getElementById('admin-emp-name').value,
+                        branch: document.getElementById('admin-emp-branch').value,
+                        position: document.getElementById('admin-emp-pos').value,
+                        department: document.getElementById('admin-emp-dept').value
+                    };
+                    await window.TransportApi.createUser(data);
+                } catch (error) {
+                    alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้ใช้');
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+            } else if (form.id === 'form-admin-car') {
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+                try {
+                    const data = {
+                        type: document.getElementById('admin-car-type').value,
+                        brand: document.getElementById('admin-car-brand').value,
+                        model: document.getElementById('admin-car-model').value,
+                        color: document.getElementById('admin-car-color').value,
+                        licensePlate: document.getElementById('admin-car-plate').value,
+                        fuelType: document.getElementById('admin-car-fuel').value
+                    };
+                    await window.TransportApi.createCar(data);
+                } catch (error) {
+                    alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลรถ');
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+            }
+
+            // Visual feedback to show it works
+            submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> บันทึกสำเร็จแล้ว!';
+            submitBtn.style.background = '#10b981'; // Tailwind emerald-500
+            
+            setTimeout(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.style.background = '';
+                form.reset();
+                if(form.id === 'form-travel-plan') {
+                    // keep only first destination row
+                    const rows = destinationsList.querySelectorAll('.dest-site');
+                    rows.forEach((r, i) => { if (i > 0) r.remove(); });
+                    updateDestinationLabels();
+                } else if(form.id === 'form-admin-user' || form.id === 'form-admin-car') {
+                     // Reload data after successful add
+                     if(window.loadAdminData) window.loadAdminData();
+                }
+            }, 3000);
+        });
+    });
+
+    // 5. Google Map Modal Logic
+    const mapModal = document.getElementById('map-modal');
+    const btnCloseMap = document.getElementById('btn-close-map');
+    const btnConfirmMap = document.getElementById('btn-confirm-map');
+    const mockLocationName = document.getElementById('mock-location-name');
+    const mapSearchInput = document.getElementById('map-search-input');
+    const btnSearchLocation = document.getElementById('btn-search-location');
+    const mapCustomInput = document.getElementById('map-custom-input');
+    const btnUseCustomLocation = document.getElementById('btn-use-custom-location');
+    const mapSearchResults = document.getElementById('map-search-results');
+
+    let currentMapInputText = null; // To store which input field opened the map
+    let locationPickerMap = null;
+    let pickerMarker = null;
+
+    function createSelectedPinIcon() {
+        return L.divIcon({
+            className: 'selected-location-pin',
+            html: '<span class="selected-location-pin__dot"></span>',
+            iconSize: [34, 44],
+            iconAnchor: [17, 42],
+            popupAnchor: [0, -40]
+        });
+    }
+
+    function updateSelectedMapPin(lat, lng, label, zoom = 15) {
+        if (!locationPickerMap || typeof L === 'undefined') return;
+
+        const nextLatLng = [lat, lng];
+        if (!pickerMarker) {
+            pickerMarker = L.marker(nextLatLng, {
+                icon: createSelectedPinIcon(),
+                zIndexOffset: 1000
+            }).addTo(locationPickerMap);
+        } else {
+            pickerMarker.setIcon(createSelectedPinIcon());
+            pickerMarker.setLatLng(nextLatLng);
+            pickerMarker.setZIndexOffset(1000);
+        }
+
+        pickerMarker.bindPopup(`<strong>${escapeHtml(label || 'Selected location')}</strong>`).openPopup();
+        if (typeof pickerMarker.bringToFront === 'function') {
+            pickerMarker.bringToFront();
+        }
+        locationPickerMap.invalidateSize();
+        locationPickerMap.setView(nextLatLng, zoom, { animate: true });
+    }
+
+    // Function to open modal
+    function openMapModal(inputElement) {
+        currentMapInputText = inputElement;
+        if (mapModal) {
+            mapModal.classList.add('active');
+            mapModal.style.display = 'flex';
+        }
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+        if(mapSearchInput) {
+            mapSearchInput.value = '';
+            setTimeout(() => mapSearchInput.focus(), 100);
+        }
+        if(mapCustomInput) mapCustomInput.value = '';
+        
+        // Initialize interactive map if not already done
+        if (!locationPickerMap) {
+            const mapContainer = document.getElementById('location-picker-map');
+            if (mapContainer && typeof L !== 'undefined') {
+                locationPickerMap = L.map('location-picker-map').setView([13.736717, 100.523186], 13);
+                L.tileLayer('http://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['0', '1', '2', '3'],
+                    attribution: '&copy; Google Maps'
+                }).addTo(locationPickerMap);
+                
+                pickerMarker = L.marker([13.736717, 100.523186], {
+                    icon: createSelectedPinIcon(),
+                    zIndexOffset: 1000
+                }).addTo(locationPickerMap);
+                
+                // Show existing pinned locations
+                const bluePinIcon = L.divIcon({
+                    className: 'custom-blue-pin',
+                    html: '<i class="fa-solid fa-location-pin" style="color: #3b82f6; font-size: 1.5rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"></i>',
+                    iconSize: [20, 24],
+                    iconAnchor: [10, 24]
+                });
+
+                if (typeof MOCK_LOCATIONS !== 'undefined') {
+                    MOCK_LOCATIONS.forEach(loc => {
+                        if (loc.lat && loc.lng) {
+                            const pinnedMarker = L.marker([loc.lat, loc.lng], {icon: bluePinIcon}).addTo(locationPickerMap);
+                            pinnedMarker.bindPopup(`<b>${loc.name}</b><br><button type="button" onclick="selectLocation('${loc.name}')" class="btn btn-sm btn-primary mt-2 flex-center" style="font-size: 0.75rem;"><i class="fa-solid fa-check"></i> เลือกจุดนี้</button>`);
+                        }
+                    });
+                }
+                
+                locationPickerMap.on('click', async function(e) {
+                    const { lat, lng } = e.latlng;
+                    updateSelectedMapPin(lat, lng, 'ตำแหน่งที่เลือก', locationPickerMap.getZoom());
+                    
+                    try {
+                        // Reverse geocoding using Nominatim
+                        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+                        const data = await response.json();
+                        let finalName = 'ตำแหน่งพิกัดไร้ชื่อ';
+                        if (data && data.address) {
+                            const addr = data.address;
+                            const subdistrict = addr.suburb || addr.village || addr.quarter || addr.hamlet || '';
+                            const district = addr.county || addr.city || addr.town || addr.municipality || addr.district || '';
+                            const province = addr.state || addr.province || '';
+                            
+                            let nameArr = [];
+                            if(subdistrict && subdistrict !== district) nameArr.push(`ต.${subdistrict}`);
+                            if(district && district !== province) nameArr.push(`อ.${district}`);
+                            if(province) nameArr.push(`จ.${province}`);
+                            
+                            if (nameArr.length > 0) {
+                                finalName = nameArr.join(' ');
+                            } else if (data.display_name) {
+                                finalName = data.display_name.split(',').slice(0,2).join(', ');
+                            }
+                        }
+                        
+                        if (mockLocationName) mockLocationName.textContent = finalName;
+                        if (mapCustomInput) mapCustomInput.value = finalName;
+                        if (mapSearchInput) mapSearchInput.value = ''; // clear search since we picked map
+                        
+                    } catch (err) {
+                        console.error('Reverse Geocode failed', err);
+                        mockLocationName.textContent = `พิกัด: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                        if (mapCustomInput) mapCustomInput.value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    }
+                });
+            }
+        }
+        
+        // Ensure map renders correctly after modal div becomes visible
+        if (locationPickerMap) {
+            setTimeout(() => {
+                locationPickerMap.invalidateSize();
+            }, 100);
+        }
+    }
+
+    // Function to close modal
+    function closeMapModal() {
+        if (mapModal) {
+            mapModal.classList.remove('active');
+            mapModal.style.display = 'none';
+        }
+        document.body.style.overflow = '';
+        currentMapInputText = null;
+        if (mapSearchResults) {
+            mapSearchResults.style.display = 'none';
+        }
+    }
+
+    // Attach event listeners using Event Delegation (handles dynamic rows automatically)
+    document.addEventListener('click', (e) => {
+        // If clicking on the map button (or its icon inside)
+        const btnMap = e.target.closest('.btn-open-map');
+        if (btnMap) {
+            const inputGroup = btnMap.closest('.input-with-action');
+            if (inputGroup) {
+                const targetInput = inputGroup.querySelector('.map-link-input');
+                if (targetInput) openMapModal(targetInput);
+            }
+            return;
+        }
+
+        // If clicking directly on the readonly text input
+        if (e.target.classList.contains('map-link-input')) {
+            openMapModal(e.target);
+        }
+        
+        // Handle Calculate Distance button click
+        const btnCheckRoute = e.target.closest('.btn-check-route');
+        if (btnCheckRoute) {
+            const row = btnCheckRoute.closest('.dest-site');
+            if (!row) return;
+            
+            const currentInput = row.querySelector('.map-link-input');
+            const distanceInput = row.querySelector('.distance-input');
+            
+            if (!currentInput || !currentInput.dataset.lat || !currentInput.dataset.lng) {
+                alert('กรุณาเลือกสถานที่ปลายทางผ่านไอคอนแผนที่ก่อน (ต้องเป็นพิกัดจริงเพื่อคำนวณระยะทาง)');
+                return;
+            }
+            
+            const lat2 = currentInput.dataset.lat;
+            const lng2 = currentInput.dataset.lng;
+            
+            let lat1, lng1;
+            let startName = "สำนักงานรัชดา (ค่าเริ่มต้น)";
+            
+            const allRows = Array.from(document.querySelectorAll('.dest-site'));
+            const index = allRows.indexOf(row);
+            
+            if (index === 0) {
+                // Try to get Origin coordinates from the .origin-site card
+                const originInput = document.querySelector('.origin-site .map-link-input');
+                if (originInput && originInput.dataset.lat && originInput.dataset.lng) {
+                    lat1 = originInput.dataset.lat;
+                    lng1 = originInput.dataset.lng;
+                    startName = originInput.value || "จุดต้นทาง";
+                } else {
+                    alert('กรุณาเลือกสถานที่ "ต้นทาง" ผ่านไอคอนแผนที่ให้ครบถ้วนก่อน เพื่อให้สามารถคำนวณระยะทางได้ถูกต้อง');
+                    return;
+                }
+            } else {
+                const prevInput = allRows[index - 1].querySelector('.map-link-input');
+                if (!prevInput || !prevInput.dataset.lat || !prevInput.dataset.lng) {
+                    alert(`กรุณาเลือกพิกัดของ ปลายทางที่ ${index} ให้สมบูรณ์ก่อน`);
+                    return;
+                }
+                lat1 = prevInput.dataset.lat;
+                lng1 = prevInput.dataset.lng;
+                startName = prevInput.value || `ปลายทางที่ ${index}`;
+            }
+            
+            const originalHtml = btnCheckRoute.innerHTML;
+            btnCheckRoute.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btnCheckRoute.disabled = true;
+            
+            const endName = currentInput.value || `ปลายทางที่ ${index + 1}`;
+            
+            fetch(`https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false&alternatives=true`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        // Find the route with the shortest distance (in case alternatives exist)
+                        let shortestRoute = data.routes[0];
+                        for(let r of data.routes) {
+                            if(r.distance < shortestRoute.distance) {
+                                shortestRoute = r;
+                            }
+                        }
+                        
+                        const distanceMeters = shortestRoute.distance;
+                        const distanceKm = (distanceMeters / 1000).toFixed(2);
+                        if (distanceInput) {
+                            distanceInput.value = distanceKm;
+                            distanceInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            
+                            addTerminalLog(`คำนวณระยะทาง: ${startName} -> ${endName} = ${distanceKm} กม.`, 'info');
+                        }
+                    } else {
+                        alert('ไม่พบเส้นทางที่รถยนต์สามารถเดินทางได้');
+                        addTerminalLog(`ล้มเหลว: ไม่พบเส้นทางระหว่าง ${startName} และ ${endName}`, 'alert');
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์คำนวณระยะทางได้');
+                    addTerminalLog('ข้อผิดพลาด: ไม่สามารถเชื่อมต่อ OSRM API ได้', 'alert');
+                })
+                .finally(() => {
+                    btnCheckRoute.innerHTML = originalHtml;
+                    btnCheckRoute.disabled = false;
+                });
+        }
+    });
+
+    if (btnCloseMap) btnCloseMap.addEventListener('click', closeMapModal);
+
+    // Close if clicking outside the modal content
+    if (mapModal) {
+        mapModal.addEventListener('click', (e) => {
+            if (e.target === mapModal) {
+                closeMapModal();
+            }
+        });
+    }
+
+    function confirmSelectedLocation() {
+        if (currentMapInputText && mockLocationName) {
+            currentMapInputText.value = mockLocationName.textContent;
+            
+            // Save coordinates onto the input field for route calculation
+            if (pickerMarker) {
+                const pos = pickerMarker.getLatLng();
+                currentMapInputText.dataset.lat = pos.lat;
+                currentMapInputText.dataset.lng = pos.lng;
+            }
+            // Trigger input change event for distance auto-calculation
+            currentMapInputText.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        closeMapModal();
+    }
+
+    if (btnConfirmMap) {
+        btnConfirmMap.addEventListener('click', confirmSelectedLocation);
+    }
+
+    if (btnUseCustomLocation) {
+        btnUseCustomLocation.addEventListener('click', () => {
+            if (mapCustomInput && mapCustomInput.value.trim() !== "") {
+                const val = mapCustomInput.value.trim();
+                
+                // Allow parsing Lat, Lng coordinates from Google Maps (e.g., 13.1234, 100.5678) 
+                // or extracting from Google Maps URL (e.g. @13.1234,100.5678)
+                const latLngMatch = val.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+                
+                if (latLngMatch) {
+                    const lat = parseFloat(latLngMatch[1]);
+                    const lng = parseFloat(latLngMatch[2]);
+                    
+                    updateSelectedMapPin(lat, lng, "พิกัด: " + lat.toFixed(4) + ", " + lng.toFixed(4), 14);
+                    
+                    if (mockLocationName) mockLocationName.textContent = "พิกัด: " + lat.toFixed(4) + ", " + lng.toFixed(4);
+                    
+                    // Auto-confirm
+                    if (typeof confirmSelectedLocation === 'function') confirmSelectedLocation();
+                } else {
+                    // It's a text string, we MUST geocode it, otherwise pickerMarker stays at old position
+                    const originalHtml = btnUseCustomLocation.innerHTML;
+                    btnUseCustomLocation.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                    btnUseCustomLocation.disabled = true;
+                    
+                    const encodedQuery = encodeURIComponent(val);
+                    fetch(`https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&limit=1`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data && data.length > 0) {
+                                const lat = parseFloat(data[0].lat);
+                                const lng = parseFloat(data[0].lon);
+                                updateSelectedMapPin(lat, lng, val, 14);
+                                if (mockLocationName) mockLocationName.textContent = val;
+                                if (typeof confirmSelectedLocation === 'function') confirmSelectedLocation();
+                            } else {
+                                alert('ไม่พบพิกัดจากชื่อสถานที่นี้ กรุณาขยับหมุดบนแผนที่ด้วยตนเองเพื่อความแม่นยำ (ระบบไม่สามารถคำนวณระยะทางได้หากไม่มีพิกัด)');
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            alert('ไม่สามารถค้นหาพิกัดได้ กรุณาปักหมุดบนแผนที่ด้วยตนเอง');
+                        })
+                        .finally(() => {
+                            btnUseCustomLocation.innerHTML = originalHtml;
+                            btnUseCustomLocation.disabled = false;
+                        });
+                }
+            } else {
+                alert('กรุณาระบุชื่อสถานที่ หรือวางพิกัดที่ต้องการใช้');
+            }
+        });
+    }
+
+    // Handle Map Search interactions
+    const MOCK_LOCATIONS = [
+        { name: "นิคมอุตสาหกรรมอมตะซิตี้ (ชลบุรี)", lat: 13.4150, lng: 101.0016 },
+        { name: "นิคมอุตสาหกรรมอมตะซิตี้ (ระยอง)", lat: 12.9818, lng: 101.1219 },
+        { name: "นิคมอุตสาหกรรมบางปู", lat: 13.5284, lng: 100.6559 },
+        { name: "นิคมอุตสาหกรรมลาดกระบัง", lat: 13.7570, lng: 100.7811 },
+        { name: "คลังสินค้าวังน้อย (อยุธยา)", lat: 14.2312, lng: 100.7180 },
+        { name: "ท่าเรือแหลมฉบัง", lat: 13.0805, lng: 100.8936 },
+        { name: "สนามบินสุวรรณภูมิ", lat: 13.6899, lng: 100.7501 },
+        { name: "สนามบินดอนเมือง", lat: 13.9125, lng: 100.6042 },
+        { name: "ศูนย์กระจายสินค้าบางนา", lat: 13.6331, lng: 100.7020 },
+        { name: "สำนักงานใหญ่ (รัชดา)", lat: 13.7801, lng: 100.5746 },
+        { name: "สาขาเชียงใหม่", lat: 18.7883, lng: 98.9853 },
+        { name: "สาขาขอนแก่น", lat: 16.4322, lng: 102.8236 },
+        { name: "สาขาสุราษฎร์ธานี", lat: 9.1382, lng: 99.3217 }
+    ];
+
+    function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, (char) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
+    function formatSearchResultName(place) {
+        return place.name || place.display_name || `${Number(place.lat).toFixed(5)}, ${Number(place.lon).toFixed(5)}`;
+    }
+
+    function buildLocationSearchQueries(query) {
+        const normalized = query
+            .replace(/บริษัท|จำกัด|co\.?|ltd\.?|limited/gi, ' ')
+            .replace(/[()"'“”‘’.,]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        const tokens = normalized.split(' ').filter(token => token.length > 2);
+        const queries = [
+            query,
+            normalized,
+            `${normalized} ประเทศไทย`,
+            tokens.slice(0, 2).join(' '),
+            ...tokens
+        ].map(item => item.trim()).filter(Boolean);
+
+        return [...new Set(queries)];
+    }
+
+    async function searchNominatim(queryText) {
+        const encodedQuery = encodeURIComponent(queryText);
+        let response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&addressdetails=1&limit=8&countrycodes=th&accept-language=th,en`);
+        let data = response.ok ? await response.json() : [];
+
+        if (!Array.isArray(data) || data.length === 0) {
+            response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodedQuery}&format=json&addressdetails=1&limit=8&accept-language=th,en`);
+            data = response.ok ? await response.json() : [];
+        }
+
+        return Array.isArray(data) ? data : [];
+    }
+
+    async function searchGooglePlaces(query) {
+        try {
+            const response = await fetch(`/api/places/search?query=${encodeURIComponent(query)}`);
+            if (!response.ok) return [];
+
+            const payload = await response.json();
+            if (!payload.configured || !Array.isArray(payload.results)) return [];
+
+            return payload.results.map((place) => ({
+                ...place,
+                lat: parseFloat(place.lat),
+                lon: parseFloat(place.lon),
+                matchedQuery: place.source === 'locationiq' ? 'LocationIQ' : 'Google Maps'
+            })).filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lon));
+        } catch (error) {
+            console.warn('Google Places search unavailable:', error);
+            return [];
+        }
+    }
+
+    async function searchRealLocations(query) {
+        const seen = new Set();
+        const allResults = [];
+
+        const googleResults = await searchGooglePlaces(query);
+        googleResults.forEach((place) => {
+            const key = place.place_id ? `google:${place.place_id}` : `${place.lat.toFixed(5)},${place.lon.toFixed(5)}:${place.display_name}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            allResults.push(place);
+        });
+
+        if (allResults.length > 0) {
+            return allResults.slice(0, 10);
+        }
+
+        for (const queryText of buildLocationSearchQueries(query)) {
+            const results = await searchNominatim(queryText);
+            results.forEach((place) => {
+                const lat = parseFloat(place.lat);
+                const lng = parseFloat(place.lon);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+                const key = place.osm_type && place.osm_id
+                    ? `${place.osm_type}:${place.osm_id}`
+                    : `${lat.toFixed(5)},${lng.toFixed(5)}:${place.display_name}`;
+                if (seen.has(key)) return;
+
+                seen.add(key);
+                allResults.push({ ...place, lat, lon: lng, matchedQuery: queryText });
+            });
+        }
+
+        return allResults.slice(0, 10);
+    }
+
+    function renderLocationResults(results, query, localMatches) {
+        if (!mapSearchResults) return;
+
+        mapSearchResults.style.display = 'block';
+        mapSearchResults.innerHTML = '';
+
+        if (results.length > 0) {
+            mapSearchResults.insertAdjacentHTML('beforeend', `
+                <div class="search-group-title"><i class="fa-solid fa-magnifying-glass-location"></i> ผลการค้นหาจากแผนที่ / ชื่อใกล้เคียง</div>
+            `);
+
+            results.forEach((place) => {
+                const name = formatSearchResultName(place);
+                const address = place.display_name || name;
+                const lat = parseFloat(place.lat);
+                const lng = parseFloat(place.lon);
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'search-result-item search-result-place';
+                item.innerHTML = `
+                    <i class="fa-solid fa-location-dot"></i>
+                    <span class="search-result-copy">
+                        <strong>${escapeHtml(name)}</strong>
+                        <small>${escapeHtml(address)}</small>
+                        <em>${lat.toFixed(5)}, ${lng.toFixed(5)}</em>
+                        ${place.matchedQuery && place.matchedQuery !== query ? `<em>เจอจากคำค้นใกล้เคียง: ${escapeHtml(place.matchedQuery)}</em>` : ''}
+                    </span>
+                `;
+                item.addEventListener('click', () => window.selectLocation({ name, displayName: address, lat, lng }));
+                mapSearchResults.appendChild(item);
+            });
+        } else {
+            mapSearchResults.insertAdjacentHTML('beforeend', `
+                <div class="search-no-match">
+                    <i class="fa-solid fa-circle-exclamation text-accent"></i> ไม่พบสถานที่จริงหรือชื่อใกล้เคียงจากแผนที่สำหรับ "${escapeHtml(query)}"
+                </div>
+            `);
+        }
+
+        if (localMatches.length > 0) {
+            mapSearchResults.insertAdjacentHTML('beforeend', `
+                <div class="search-group-title"><i class="fa-solid fa-bookmark"></i> หมุดที่บันทึกไว้ / แนะนำ</div>
+            `);
+
+            localMatches.forEach((loc) => {
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'search-result-item search-result-place';
+                item.innerHTML = `
+                    <i class="fa-solid fa-map-pin"></i>
+                    <span class="search-result-copy">
+                        <strong>${escapeHtml(loc.name)}</strong>
+                        <small>พิกัดที่บันทึกไว้ในระบบ</small>
+                        <em>${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}</em>
+                    </span>
+                `;
+                item.addEventListener('click', () => window.selectLocation(loc));
+                mapSearchResults.appendChild(item);
+            });
+        }
+
+        const manualItem = document.createElement('button');
+        manualItem.type = 'button';
+        manualItem.className = 'search-result-item search-result-custom';
+        manualItem.innerHTML = `
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span class="search-result-copy">
+                <strong>ไม่ใช่ผลลัพธ์เหล่านี้? ปักหมุดเองบนแผนที่</strong>
+                <small>ระบบจะไม่สร้างหมุดอัตโนมัติถ้าไม่มีพิกัดจริงจากแผนที่</small>
+            </span>
+        `;
+        manualItem.addEventListener('click', () => {
+            if (mapSearchResults) mapSearchResults.style.display = 'none';
+            if (mockLocationName) mockLocationName.textContent = 'คลิกบนแผนที่เพื่อเลือกพิกัด';
+            const mapEl = document.getElementById('location-picker-map');
+            if (mapEl) mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        mapSearchResults.appendChild(manualItem);
+    }
+
+    async function executeLocationSearch() {
+        const query = mapSearchInput.value.trim();
+        if (!query) return;
+
+        const originalHtml = btnSearchLocation.innerHTML;
+        btnSearchLocation.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหา...';
+        btnSearchLocation.disabled = true;
+
+        const localMatches = MOCK_LOCATIONS.filter(loc =>
+            loc.name.toLowerCase().includes(query.toLowerCase())
+        );
+
+        try {
+            const latLngMatch = query.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+            if (latLngMatch) {
+                const lat = parseFloat(latLngMatch[1]);
+                const lng = parseFloat(latLngMatch[2]);
+                renderLocationResults([{ name: query, display_name: `พิกัด ${query}`, lat, lon: lng }], query, localMatches);
+                window.selectLocation({ name: query, lat, lng });
+                return;
+            }
+
+            const results = await searchRealLocations(query);
+            renderLocationResults(results, query, localMatches);
+
+            if (results.length > 0 && locationPickerMap && pickerMarker) {
+                const lat = parseFloat(results[0].lat);
+                const lng = parseFloat(results[0].lon);
+                updateSelectedMapPin(lat, lng, formatSearchResultName(results[0]), 13);
+                if (mockLocationName) mockLocationName.textContent = formatSearchResultName(results[0]);
+            } else {
+                if (mockLocationName) mockLocationName.textContent = 'ไม่พบพิกัดจริงจากแผนที่';
+            }
+        } catch (err) {
+            console.error(err);
+            renderLocationResults([], query, localMatches);
+        } finally {
+            btnSearchLocation.innerHTML = originalHtml;
+            btnSearchLocation.disabled = false;
+        }
+    }
+
+    window.selectLocation = function(location) {
+        const selected = typeof location === 'string' ? { name: location } : location;
+        const locationName = selected.name || selected.displayName || '';
+
+        if (mapSearchResults) mapSearchResults.style.display = 'none';
+        if (mockLocationName) mockLocationName.textContent = locationName;
+        if (mapSearchInput) mapSearchInput.value = locationName;
+        if (mapCustomInput) mapCustomInput.value = locationName;
+
+        const lat = Number(selected.lat);
+        const lng = Number(selected.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && locationPickerMap) {
+            updateSelectedMapPin(lat, lng, locationName, 15);
+        }
+
+        const mapEl = document.getElementById('location-picker-map');
+        if (mapEl) {
+            setTimeout(() => mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+        }
+    };
+
+    if (btnSearchLocation) {
+        btnSearchLocation.addEventListener('click', executeLocationSearch);
+    }
+    
+    if (mapSearchInput) {
+        mapSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            const latLngMatch = query.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+            if (latLngMatch && locationPickerMap && pickerMarker) {
+                const lat = parseFloat(latLngMatch[1]);
+                const lng = parseFloat(latLngMatch[2]);
+                updateSelectedMapPin(lat, lng, query, 14);
+            }
+        });
+        
+        mapSearchInput.addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') {
+                e.preventDefault();
+                executeLocationSearch();
+            }
+        });
+    }
+
+    // === 6. Professional GPS Tracking Engine ===
+    const btnOpenMobileSync = document.getElementById('btn-open-mobile-sync');
+    const qrPopover = document.getElementById('qr-popover');
+    const btnClosePopover = document.getElementById('btn-close-popover');
+    const syncQrContainer = document.getElementById('sync-qr-code');
+    const syncUrlText = document.getElementById('sync-url-text');
+    const btnDownloadQr = document.getElementById('btn-download-qr');
+
+    const btnToggleTravelerGps = document.getElementById('btn-toggle-traveler-gps');
+    const travelerGpsStatus = document.getElementById('traveler-gps-status');
+    const btnToggleDriverGps = document.getElementById('btn-toggle-driver-gps');
+    const driverGpsStatus = document.getElementById('driver-gps-status');
+    const driverSpeedEl = document.getElementById('driver-speed');
+    const travelerCoordsEl = document.getElementById('traveler-coords');
+
+    const btnStartJourney = document.getElementById('btn-start-journey');
+    const btnEndJourney = document.getElementById('btn-end-journey');
+    const gpsLogBody = document.getElementById('gps-log-body');
+
+    let travelerConnected = false;
+    let driverConnected = false;
+    let journeyInterval = null;
+    let gpsLiveMap = null;
+    let travelerMarker = null;
+    let driverMarker = null;
+    let liveTripPath = null;
+    let mockTravelData = {
+        lat: 13.7801, // Start at HQ
+        lng: 100.5746,
+        speed: 0
+    };
+
+    // Initialize GPS Live Map
+    function initGpsLiveMap() {
+        const mapDiv = document.getElementById('gps-live-map');
+        if (mapDiv && !gpsLiveMap && typeof L !== 'undefined') {
+            gpsLiveMap = L.map('gps-live-map', { zoomControl: false }).setView([13.7801, 100.5746], 12);
+            L.tileLayer('http://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['0', '1', '2', '3']
+            }).addTo(gpsLiveMap);
+
+            const travelerIcon = L.divIcon({
+                className: 'live-marker',
+                html: '<div style="background: #3b82f6; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);"></div>',
+                iconSize: [14, 14]
+            });
+            const driverIcon = L.divIcon({
+                className: 'live-marker',
+                html: '<div style="background: #f97316; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(249, 115, 22, 0.5);"></div>',
+                iconSize: [14, 14]
+            });
+
+            travelerMarker = L.marker([13.7801, 100.5746], {icon: travelerIcon}).addTo(gpsLiveMap);
+            driverMarker = L.marker([13.7801, 100.5746], {icon: driverIcon}).addTo(gpsLiveMap);
+        }
+    }
+
+    // QR Sync Logic (Popover)
+    if (btnOpenMobileSync) {
+        btnOpenMobileSync.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (qrPopover) {
+                const isActive = qrPopover.classList.contains('active');
+                
+                if (!isActive) {
+                    // Generate simulated trip URL
+                    const tripId = "TRIP-" + Math.floor(Math.random() * 9999);
+                    const syncUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tripId=${tripId}&role=driver`;
+                    
+                    if (syncUrlText) syncUrlText.textContent = syncUrl;
+                    if (syncQrContainer) {
+                        syncQrContainer.innerHTML = '';
+                        new QRCode(syncQrContainer, {
+                            text: syncUrl,
+                            width: 180,
+                            height: 180,
+                            colorDark : "#000000",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.H
+                        });
+                    }
+                    qrPopover.classList.add('active');
+                } else {
+                    qrPopover.classList.remove('active');
+                }
+            }
+        });
+
+        if (btnClosePopover) {
+            btnClosePopover.addEventListener('click', () => {
+                qrPopover.classList.remove('active');
+            });
+        }
+
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (qrPopover && qrPopover.classList.contains('active') && !qrPopover.contains(e.target) && e.target !== btnOpenMobileSync) {
+                qrPopover.classList.remove('active');
+            }
+        });
+
+        if (btnDownloadQr) {
+            btnDownloadQr.addEventListener('click', () => {
+                const qrImg = syncQrContainer.querySelector('img');
+                const qrCanvas = syncQrContainer.querySelector('canvas');
+                let dataUrl = (qrImg && qrImg.src) ? qrImg.src : (qrCanvas ? qrCanvas.toDataURL("image/png") : '');
+
+                if (dataUrl) {
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = `TMS-Sync-QR-${new Date().getTime()}.png`;
+                    link.click();
+                }
+            });
+        }
+    }
+
+    function closeSyncModal() {
+        if (qrPopover) qrPopover.classList.remove('active');
+    }
+
+
+    function addTerminalLog(message, type = 'info') {
+        if (!gpsLogBody) return;
+        if (gpsLogBody.querySelector('.init')) gpsLogBody.innerHTML = '';
+
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('th-TH', { hour12: false });
+        
+        const line = document.createElement('div');
+        line.className = `term-line ${type} fade-in`;
+        line.innerHTML = `<span class="timestamp">${timeStr}</span> ${message}`;
+        
+        gpsLogBody.appendChild(line);
+        gpsLogBody.scrollTop = gpsLogBody.scrollHeight;
+    }
+
+    function toggleProfessionalGps(type) {
+        const isTraveler = type === 'traveler';
+        const isConnected = isTraveler ? travelerConnected : driverConnected;
+        const statusEl = isTraveler ? travelerGpsStatus : driverGpsStatus;
+        const btnEl = isTraveler ? btnToggleTravelerGps : btnToggleDriverGps;
+        const cardClass = isTraveler ? '.traveler-card' : '.driver-card';
+        const card = document.querySelector(cardClass);
+
+        if (!isConnected) { // Connecting
+            btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btnEl.disabled = true;
+            addTerminalLog(`Establishing link to ${isTraveler ? 'Traveler' : 'Driver'} GPS unit...`, 'init');
+            
+            setTimeout(() => {
+                const newState = true;
+                if (isTraveler) travelerConnected = true; else driverConnected = true;
+                
+                statusEl.parentElement.parentElement.parentElement.classList.add('online');
+                statusEl.querySelector('.badge-text').textContent = 'Live System Online';
+                btnEl.innerHTML = '<i class="fa-solid fa-unlink"></i>';
+                btnEl.className = 'btn-icon text-danger';
+                btnEl.disabled = false;
+                
+                addTerminalLog(`${isTraveler ? 'Traveler' : 'Driver'} GPS Handshake: OK. Bitrate: 48kbps`, 'coord');
+                checkGpsReady();
+                initGpsLiveMap();
+            }, 1500);
+        } else { // Disconnecting
+            if (isTraveler) travelerConnected = false; else driverConnected = false;
+            statusEl.parentElement.parentElement.parentElement.classList.remove('online');
+            statusEl.querySelector('.badge-text').textContent = 'รอการเชื่อมต่อ...';
+            btnEl.innerHTML = '<i class="fa-solid fa-link"></i>';
+            btnEl.className = 'btn-icon text-accent';
+            addTerminalLog(`Terminiating link for ${isTraveler ? 'Traveler' : 'Driver'}... Session ended.`, 'alert');
+            
+            if (journeyInterval) endJourney('🔴 Emergency STOP: GPS Signal Lost.');
+            checkGpsReady();
+        }
+    }
+
+    if (btnToggleTravelerGps) btnToggleTravelerGps.addEventListener('click', () => toggleProfessionalGps('traveler'));
+    if (btnToggleDriverGps) btnToggleDriverGps.addEventListener('click', () => toggleProfessionalGps('driver'));
+
+    function checkGpsReady() {
+        btnStartJourney.disabled = !(travelerConnected && driverConnected && !journeyInterval);
+    }
+
+    function startJourney() {
+        btnStartJourney.disabled = true;
+        btnEndJourney.disabled = false;
+        
+        addTerminalLog('CRITICAL: Dispatch sequence initiated.', 'init');
+        addTerminalLog('Tracking active. All systems nominal.', 'coord');
+        
+        let step = 0;
+        journeyInterval = setInterval(() => {
+            step++;
+            // Simulate jitter and movement towards destination
+            const jitterLat = (Math.random() - 0.5) * 0.0005;
+            const jitterLng = (Math.random() - 0.5) * 0.0005;
+            
+            mockTravelData.lat += 0.0008 + jitterLat; // Fast simulation
+            mockTravelData.lng += 0.0004 + jitterLng;
+            mockTravelData.speed = Math.floor(60 + Math.random() * 15);
+            
+            // Update UI Gauges
+            if (driverSpeedEl) driverSpeedEl.textContent = mockTravelData.speed;
+            if (travelerCoordsEl) travelerCoordsEl.textContent = `${mockTravelData.lat.toFixed(4)}, ${mockTravelData.lng.toFixed(4)}`;
+            
+            // Update Map
+            const newPos = [mockTravelData.lat, mockTravelData.lng];
+            if (travelerMarker) travelerMarker.setLatLng(newPos);
+            if (driverMarker) driverMarker.setLatLng([newPos[0] - 0.0002, newPos[1] - 0.0001]); // Slightly behind
+            
+            if (gpsLiveMap && step % 2 === 0) gpsLiveMap.panTo(newPos);
+            
+            if (step % 5 === 0) {
+                addTerminalLog(`Live Telemetry: Lat ${newPos[0].toFixed(5)} Lng ${newPos[1].toFixed(5)} Speed ${mockTravelData.speed}km/h`, 'coord');
+            }
+            
+            if (step >= 50) { // End of mock journey
+                endJourney();
+            }
+        }, 1500);
+    }
+
+    function endJourney(reason = 'MISSION SCAN COMPLETE: Vehicle arrived at destination.') {
+        if (journeyInterval) {
+            clearInterval(journeyInterval);
+            journeyInterval = null;
+        }
+        addTerminalLog(reason, 'init');
+        btnEndJourney.disabled = true;
+        checkGpsReady();
+    }
+
+    if (btnStartJourney) btnStartJourney.addEventListener('click', startJourney);
+    if (btnEndJourney) btnEndJourney.addEventListener('click', () => endJourney());
+
+    // Auto-init dashboard map if container exists (Wait for potential tab switch)
+    setTimeout(initGpsLiveMap, 1000);
+
+    // === 7. Approval Flow Simulation Logic ===
+    const formTravelPlan = document.getElementById('form-travel-plan');
+    const approvalStatusSection = document.getElementById('approval-status-section');
+    const btnSubmitTravelPlan = document.getElementById('btn-submit-travel-plan');
+    
+    // Steps
+    const step1 = document.getElementById('step-1');
+    const step2 = document.getElementById('step-2');
+    const step3 = document.getElementById('step-3');
+    const step4 = document.getElementById('step-4');
+    const step5 = document.getElementById('step-5');
+
+    // Mock State for separate menus
+    let travelRequests = [];
+    let requestCounter = 1000;
+    
+    // References to table bodies
+    const managerListBody = document.getElementById('manager-list-body');
+    const hrListBody = document.getElementById('hr-list-body');
+    const mdListBody = document.getElementById('md-list-body');
+    const accountingListBody = document.getElementById('accounting-list-body');
+
+    function updateApprovalDate(stepEl) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('th-TH');
+        const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+        stepEl.querySelector('.status-date').textContent = `${dateStr} ${timeStr}`;
+    }
+
+    function setStepState(stepEl, state) {
+        stepEl.className = `step ${state}`;
+        if (state === 'completed') {
+            updateApprovalDate(stepEl);
+        }
+    }
+
+    function renderTables() {
+        // Fetch and Render for each status
+        const statuses = ['manager', 'hr', 'md', 'accounting'];
+        statuses.forEach(async (status) => {
+            try {
+                const reqs = await window.TransportApi.listTravelRequests(status);
+                
+                let bodyEl;
+                let nextStatus;
+                let btnText;
+                
+                if (status === 'manager') { bodyEl = managerListBody; nextStatus = 'hr'; btnText = 'อนุมัติ'; }
+                else if (status === 'hr') { bodyEl = hrListBody; nextStatus = 'md'; btnText = 'ตรวจสอบผ่าน'; }
+                else if (status === 'md') { bodyEl = mdListBody; nextStatus = 'accounting'; btnText = 'อนุมัติ'; }
+                else if (status === 'accounting') { bodyEl = accountingListBody; nextStatus = 'completed'; btnText = 'ทำจ่ายเสร็จสิ้น'; }
+                
+                if (!bodyEl) return;
+
+                if (reqs.length === 0) {
+                    bodyEl.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอ${status === 'accounting' ? 'ทำจ่าย' : 'อนุมัติ'}</td></tr>`;
+                } else {
+                    bodyEl.innerHTML = reqs.map(req => `
+                        <tr>
+                            <td>TRV-${req.id}</td>
+                            <td>${req.traveler_name || 'ไม่ระบุ'}</td>
+                            <td>${new Date(req.travel_date).toLocaleDateString('th-TH')}</td>
+                            <td><span style="color: orange;">รอ${status === 'manager' ? 'หัวหน้า' : status.toUpperCase()}อนุมัติ</span></td>
+                            <td><button class="btn btn-sm btn-primary" onclick="approveRequest('${req.id}', '${nextStatus}')"><i class="fa-solid fa-check"></i> ${btnText}</button></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error(`Error rendering ${status} table:`, error);
+            }
+        });
+    }
+
+    // Expose globally for inline onclick execution
+    window.approveRequest = async function(reqId, nextStatus) {
+        try {
+            await window.TransportApi.updateTravelRequestStatus(reqId, nextStatus);
+
+            // Sync with local stepper if it's the current request being tracked
+            // Note: In this version, we just show a generic alert and refresh tables
+            if (nextStatus === 'hr') {
+                setStepState(step2, 'completed');
+                setStepState(step3, 'active');
+                alert(`อนุมัติคำขอ TRV-${reqId} เรียบร้อยแล้ว -> ส่งต่อให้ HR`);
+            } else if (nextStatus === 'md') {
+                setStepState(step3, 'completed');
+                setStepState(step4, 'active');
+                alert(`ตรวจสอบคำขอ TRV-${reqId} เรียบร้อยแล้ว -> ส่งต่อให้ MD อนุมัติ`);
+            } else if (nextStatus === 'accounting') {
+                setStepState(step4, 'completed');
+                setStepState(step5, 'active');
+                alert(`อนุมัติคำขอ TRV-${reqId} เรียบร้อยแล้ว -> ส่งต่อให้แผนกบัญชีทำจ่าย`);
+            } else if (nextStatus === 'completed') {
+                setStepState(step5, 'completed');
+                alert(`คำขอ TRV-${reqId} ทำจ่ายเสร็จสิ้นสมบูรณ์`);
+            }
+            
+            renderTables();
+        } catch (error) {
+            alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
+            console.error(error);
+        }
+    };
+
+    // Expose globally for inline onclick execution
+    // window.approveRequest is already defined above
+
+    function getInputValue(container, selector, fallback = '') {
+        const input = container ? container.querySelector(selector) : null;
+        return input ? input.value.trim() : fallback;
+    }
+
+    function getInputValueByIndex(container, index, fallback = '') {
+        const inputs = container ? container.querySelectorAll('input') : [];
+        return inputs[index] ? inputs[index].value.trim() : fallback;
+    }
+
+    formTravelPlan.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        // Change button to show loading/success
+        const originalText = btnSubmitTravelPlan.innerHTML;
+        btnSubmitTravelPlan.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังส่งขออนุมัติ...';
+        btnSubmitTravelPlan.disabled = true;
+
+        try {
+            // Collect Data
+            const travelers = Array.from(document.querySelectorAll('#travelers-list .traveler-card')).map(card => ({
+                id: getInputValueByIndex(card, 0),
+                name: getInputValueByIndex(card, 1),
+                department: getInputValueByIndex(card, 2),
+                position: getInputValueByIndex(card, 3),
+                phone: getInputValueByIndex(card, 4),
+                comment: getInputValueByIndex(card, 5)
+            }));
+
+            const originCard = document.querySelector('.origin-site');
+            const origin = {
+                projectCode: getInputValueByIndex(originCard, 0),
+                name: getInputValueByIndex(originCard, 1),
+                gpsLink: getInputValue(originCard, '.map-link-input')
+            };
+
+            const destinations = Array.from(document.querySelectorAll('#destinations-list .dest-site')).map(card => ({
+                projectCode: getInputValueByIndex(card, 0),
+                name: getInputValueByIndex(card, 1),
+                gpsLink: getInputValue(card, '.map-link-input'),
+                distance: parseFloat(getInputValue(card, '.distance-input')) || 0
+            }));
+
+            const dateValue = getInputValue(formTravelPlan, 'input[type="date"]');
+            const timeValue = getInputValue(formTravelPlan, 'input[type="time"]');
+
+            const fuel = {
+                type: document.getElementById('fuel-type').value,
+                qty: parseFloat(document.getElementById('fuel-qty').value) || 0,
+                price: parseFloat(document.getElementById('fuel-price').value) || 0,
+                total: parseFloat(document.getElementById('fuel-total').textContent.replace(/,/g, '')) || 0
+            };
+
+            const accommodation = {
+                type: document.getElementById('acc-type').value,
+                qty: parseFloat(document.getElementById('acc-qty').value) || 0,
+                price: parseFloat(document.getElementById('acc-price').value) || 0,
+                total: parseFloat(document.getElementById('acc-total').textContent.replace(/,/g, '')) || 0
+            };
+
+            const grandTotal = parseFloat(document.getElementById('grand-total').textContent.replace(/,/g, '').replace(' บาท', '')) || 0;
+
+            const result = await window.TransportApi.createTravelRequest({ travelers, origin, destinations, date: dateValue, time: timeValue, fuel, accommodation, grandTotal });
+
+            btnSubmitTravelPlan.innerHTML = '<i class="fa-solid fa-check"></i> ส่งขออนุมัติสำเร็จ';
+            btnSubmitTravelPlan.classList.replace('btn-primary', 'btn-secondary');
+            
+            // Re-render tables to show the new request in Manager queue
+            renderTables();
+            
+            // Show Approval UI in current flow tracking
+            approvalStatusSection.style.display = 'block';
+            
+            // Set Step 1 to completed, Step 2 to active
+            setStepState(step1, 'completed');
+            setStepState(step2, 'active');
+            
+            // Scroll to the approval section
+            approvalStatusSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            alert(`สร้างแผนการเดินทางเสร็จสิ้น! รหัสอ้างอิง: TRV-${result.requestId}`);
+
+        } catch (error) {
+            console.error('Error submitting travel plan:', error);
+            alert(`เกิดข้อผิดพลาดในการส่งแผนการเดินทาง: ${error.message || 'กรุณาตรวจสอบข้อมูลอีกครั้ง'}`);
+            btnSubmitTravelPlan.innerHTML = originalText;
+            btnSubmitTravelPlan.disabled = false;
+        }
+    });
+
+    // Initial render
+    renderTables();
+
+    // === 8. Load initial admin data ===
+    const userListBody = document.getElementById('admin-user-list');
+    const carListBody = document.getElementById('admin-car-list');
+
+    window.loadAdminData = async function() {
+        if (!userListBody || !carListBody) return;
+
+        // Load Users
+        try {
+            const users = await window.TransportApi.listUsers();
+            if (users) {
+                if (users.length === 0) {
+                    userListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีข้อมูลพนักงาน</td></tr>';
+                } else {
+                    userListBody.innerHTML = users.map(u => `
+                        <tr>
+                            <td>${u.employee_id || '-'}</td>
+                            <td>${u.name || '-'}</td>
+                            <td>${u.branch || '-'}</td>
+                            <td>${u.department || '-'}</td>
+                            <td>${u.position || '-'}</td>
+                            <td><button class="btn-icon text-danger"><i class="fa-solid fa-trash"></i></button></td>
+                        </tr>
+                    `).join('');
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            userListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-danger);">เกิดข้อผิดพลาดในการดึงข้อมูล</td></tr>';
+        }
+
+        // Load Cars
+        try {
+            const cars = await window.TransportApi.listCars();
+            if (cars) {
+                if (cars.length === 0) {
+                    carListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีข้อมูลรถ</td></tr>';
+                } else {
+                    carListBody.innerHTML = cars.map(c => `
+                        <tr>
+                            <td>${c.type || '-'}</td>
+                            <td>${c.brand || '-'} / ${c.model || '-'}</td>
+                            <td>${c.color || '-'}</td>
+                            <td>${c.license_plate || '-'}</td>
+                            <td>${c.fuel_type || '-'}</td>
+                            <td><button class="btn-icon text-danger"><i class="fa-solid fa-trash"></i></button></td>
+                        </tr>
+                    `).join('');
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            carListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-danger);">เกิดข้อผิดพลาดในการดึงข้อมูล</td></tr>';
+        }
+    }
+    
+    // Initial fetch
+    if(userListBody && carListBody) {
+        window.loadAdminData();
+    }
+
+    // === 9. New Car Booking Flow Logic ===
+    let carBookings = [];
+    let carBookingCounter = 1000;
+    
+    // Elements for Arrangement
+    const carArrangementListView = document.getElementById('car-arrangement-list-view');
+    const formCarArrangement = document.getElementById('form-car-arrangement');
+    const arrangementListBody = document.getElementById('car-arrangement-list-body');
+    const btnBackArrangement = document.getElementById('btn-back-arrangement');
+    
+    // Elements for Packing
+    const packingListView = document.getElementById('packing-list-view');
+    const packingSimulatorView = document.getElementById('packing-simulator-view');
+    const packingListBodyTable = document.getElementById('packing-list-main-body');
+    const btnBackPacking = document.getElementById('btn-back-packing');
+    
+    let currentArrangeBookingId = null;
+    let currentPackBookingId = null;
+
+    // --- CAR BOOKING FORM SUBMIT ---
+    const formCarBooking = document.getElementById('form-car-booking');
+    if (formCarBooking) {
+        formCarBooking.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const submitBtn = formCarBooking.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+            submitBtn.disabled = true;
+            
+            setTimeout(() => {
+                submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> ยืนยันสำเร็จ!';
+                submitBtn.style.background = '#10b981';
+                
+                const type = document.getElementById('booking-type-select').value;
+                let detail = '';
+                let dest = '';
+                
+                if (type === 'admin') {
+                    const adminReq = document.querySelector('.admin-req');
+                    detail = adminReq && adminReq.value ? adminReq.value : '-';
+                    dest = 'ตามมอบหมาย';
+                } else {
+                    const docReq = document.querySelector('.delivery-req');
+                    detail = 'ส่งสินค้า (เอกสาร: ' + (docReq && docReq.value ? docReq.value : '-') + ')';
+                    dest = 'หลายปลายทาง';
+                }
+                
+                const newBooking = {
+                    id: 'CB-' + (++carBookingCounter),
+                    type: type,
+                    detail: detail,
+                    destination: dest,
+                    status: 'pending_arrangement',
+                    packingList: [], // Will be filled in arrangement
+                    arrangedCar: null
+                };
+                
+                carBookings.push(newBooking);
+                renderCarArrangementTable();
+                
+                alert('จองรถเรียบร้อย! คำขอถูกส่งไปยังแผนกจัดรถแล้ว (รหัส ' + newBooking.id + ')');
+                
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.style.background = '';
+                    submitBtn.disabled = false;
+                    formCarBooking.reset();
+                }, 2000);
+            }, 1000);
+        });
+    }
+
+    // --- CAR ARRANGEMENT LOGIC ---
+    let carArrangements = [];
+    let arrangementCounter = 1000;
+    let currentArrangeBookingIds = [];
+
+    const btnArrangeSelected = document.getElementById('btn-arrange-selected');
+    const checkAllArrangements = document.getElementById('check-all-arrangements');
+
+    function updateArrangeSelectionButtons() {
+        const checkboxes = document.querySelectorAll('.arrange-checkbox');
+        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+        if (btnArrangeSelected) {
+            btnArrangeSelected.disabled = checkedCount === 0;
+            btnArrangeSelected.innerHTML = `<i class="fa-solid fa-truck-fast"></i> จัดรวบยอดที่เลือก (${checkedCount})`;
+        }
+        if (checkAllArrangements) {
+            checkAllArrangements.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        }
+    }
+
+    if (checkAllArrangements) {
+        checkAllArrangements.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.arrange-checkbox');
+            checkboxes.forEach(cb => cb.checked = e.target.checked);
+            updateArrangeSelectionButtons();
+        });
+    }
+
+    if (btnArrangeSelected) {
+        btnArrangeSelected.addEventListener('click', () => {
+            const selectedIds = Array.from(document.querySelectorAll('.arrange-checkbox:checked')).map(cb => cb.value);
+            if(selectedIds.length > 0) openArrangeForm(selectedIds);
+        });
+    }
+
+    // Make render global to call from inline onclick
+    window.renderCarArrangementTable = function() {
+        if (!arrangementListBody) return;
+        const pendingReqs = carBookings.filter(b => b.status === 'pending_arrangement');
+        
+        if (pendingReqs.length === 0) {
+            arrangementListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอจัดรถ</td></tr>';
+        } else {
+            arrangementListBody.innerHTML = pendingReqs.map(req => `
+                <tr>
+                    <td><input type="checkbox" class="arrange-checkbox" value="${req.id}" onchange="updateArrangeSelectionButtons()"></td>
+                    <td>${req.id}</td>
+                    <td>${req.type === 'admin' ? '<span class="badge" style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 8px; border-radius: 4px;">งานธุระการ</span>' : '<span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #8b5cf6; padding: 4px 8px; border-radius: 4px;">งานส่งสินค้า</span>'}</td>
+                    <td>${req.detail} <br> <small class="text-secondary"><i class="fa-solid fa-location-dot"></i> ${req.destination}</small></td>
+                    <td><span style="color: orange;">รอรับเรื่อง / จัดรถ</span></td>
+                    <td><button class="btn btn-sm btn-primary" onclick="openArrangeForm(['${req.id}'])"><i class="fa-solid fa-truck-fast"></i> จัดรถใช้งาน</button></td>
+                </tr>
+            `).join('');
+        }
+        updateArrangeSelectionButtons();
+    };
+    
+    // Attach it globally so the inline html `onchange` can find it
+    window.updateArrangeSelectionButtons = updateArrangeSelectionButtons;
+
+    window.openArrangeForm = function(ids) {
+        currentArrangeBookingIds = ids;
+        document.getElementById('arrange-booking-ids').textContent = ids.join(', ');
+        carArrangementListView.style.display = 'none';
+        formCarArrangement.style.display = 'flex';
+    };
+    
+    if (btnBackArrangement) {
+        btnBackArrangement.addEventListener('click', () => {
+            formCarArrangement.style.display = 'none';
+            carArrangementListView.style.display = 'block';
+            currentArrangeBookingIds = [];
+        });
+    }
+    
+    if (formCarArrangement) {
+        formCarArrangement.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (currentArrangeBookingIds.length === 0) return;
+            
+            const submitBtn = formCarArrangement.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+            submitBtn.disabled = true;
+            
+            setTimeout(() => {
+                const arrangedCarDetails = {
+                    type: document.getElementById('arrange-car-type').value,
+                    plate: document.getElementById('arrange-car-plate').value
+                };
+
+                const hasDelivery = currentArrangeBookingIds.some(id => {
+                    const b = carBookings.find(x => x.id === id);
+                    return b && b.type === 'delivery';
+                });
+
+                // No packing list collection anymore since it was removed from UI
+                let items = [];
+                let attachedFileName = '';
+
+                // Combine destinations roughly for display
+                const allDestinations = currentArrangeBookingIds.map(id => {
+                    const b = carBookings.find(x => x.id === id);
+                    return b ? b.destination : '';
+                }).filter((value, index, self) => value && value !== 'ตามมอบหมาย' && self.indexOf(value) === index).join(' และ ');
+
+                // Create Arrangement
+                const newArrangement = {
+                    id: 'AR-' + (++arrangementCounter),
+                    bookingIds: currentArrangeBookingIds,
+                    destination: allDestinations || 'ตามมอบหมาย',
+                    arrangedCar: arrangedCarDetails,
+                    packingList: items,
+                    attachedFile: attachedFileName,
+                    status: hasDelivery ? 'pending_packing' : 'completed'
+                };
+                
+                carArrangements.push(newArrangement);
+
+                // Update linked bookings
+                currentArrangeBookingIds.forEach(id => {
+                    const b = carBookings.find(x => x.id === id);
+                    if (b) b.status = 'arranged'; // so they disappear from waiting list
+                });
+
+                if (hasDelivery) {
+                    alert(`จัดรถรวบยอดเรียบร้อย! งานนี้ถูกสร้างเป็นเลขจัดรถ ${newArrangement.id} และส่งไปยังแผนก "จัดของ" แล้ว`);
+                } else {
+                    alert(`จัดรถเรียบร้อย! เลขทำรายการ ${newArrangement.id} สำหรับงานธุระการ พร้อมเดินทางไม่ต้องจัดของ`);
+                }
+                
+                formCarArrangement.style.display = 'none';
+                carArrangementListView.style.display = 'block';
+                currentArrangeBookingIds = [];
+                if (checkAllArrangements) checkAllArrangements.checked = false;
+                formCarArrangement.reset();
+                submitBtn.innerHTML = '<i class="fa-solid fa-clipboard-check"></i> ยืนยันการจัดรถ';
+                submitBtn.disabled = false;
+                
+                renderCarArrangementTable();
+                renderPackingTable();
+            }, 800);
+        });
+    }
+
+    // --- PACKING LOGIC (DRAG & DROP) ---
+    window.renderPackingTable = function() {
+        if (!packingListBodyTable) return;
+        const pendingPackings = carArrangements.filter(a => a.status === 'pending_packing');
+        
+        if (pendingPackings.length === 0) {
+            packingListBodyTable.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอจัดของ</td></tr>';
+        } else {
+            packingListBodyTable.innerHTML = pendingPackings.map(req => `
+                <tr>
+                    <td>${req.id} <br><small class="text-secondary">รหัสใบจอง: ${req.bookingIds.join(', ')}</small></td>
+                    <td><span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 8px; border-radius: 4px;">${req.arrangedCar.plate}</span><br><small class="text-secondary">${req.arrangedCar.type}</small></td>
+                    <td><i class="fa-solid fa-location-dot text-accent"></i> ${req.destination} ${req.attachedFile ? `<br><small style="color: #3b82f6;"><i class="fa-solid fa-paperclip"></i> ${req.attachedFile}</small>` : ''}</td>
+                    <td><span style="color: yellow;">รอตียอดจัดของขึ้นรถ</span></td>
+                    <td><button class="btn btn-sm btn-primary" onclick="openPackingSimulator('${req.id}')"><i class="fa-solid fa-box-open"></i> จัดแบบจำลอง</button></td>
+                </tr>
+            `).join('');
+        }
+    };
+    
+    window.openPackingSimulator = function(id) {
+        currentPackBookingId = id;
+        document.getElementById('pack-booking-id').textContent = id;
+        packingListView.style.display = 'none';
+        packingSimulatorView.style.display = 'block';
+        
+        const arrangement = carArrangements.find(a => a.id === id);
+        if (!arrangement) return;
+        
+        // Setup Vehicle Info
+        const carTypeMap = { 'sedan': 'รถเก๋ง', 'pickup': 'รถกระบะ', 'van': 'รถตู้', 'truck': 'รถบรรทุก' };
+        const displayType = carTypeMap[arrangement.arrangedCar.type] || arrangement.arrangedCar.type;
+        document.getElementById('cargo-vehicle-info').textContent = displayType + ' (' + arrangement.arrangedCar.plate + ')';
+        
+        // Modify cargo zone size slightly based on car type for realism
+        const dropZone = document.getElementById('cargo-drop-zone');
+        if(arrangement.arrangedCar.type === 'pickup') {
+            dropZone.style.width = '70%'; 
+            dropZone.style.height = '280px';
+        } else if(arrangement.arrangedCar.type === 'van') {
+            dropZone.style.width = '90%'; 
+            dropZone.style.height = '320px';
+        } else {
+            dropZone.style.width = '80%'; 
+            dropZone.style.height = '250px';
+        }
+        
+        // Generate Draggable Items
+        const container = document.getElementById('draggable-items-container');
+        container.innerHTML = '';
+        
+        let itemIdCounter = 1;
+        arrangement.packingList.forEach(item => {
+            // If qty > 1, create multiple boxes for simulation
+            const numBoxes = Math.min(item.qty, 10); // cap to 10 for performance in sim
+            for(let i=0; i<numBoxes; i++) {
+                const el = document.createElement('div');
+                el.className = 'draggable-item';
+                el.id = 'cargo-item-' + itemIdCounter++;
+                el.setAttribute('draggable', 'true');
+                el.innerHTML = '<i class="fa-solid fa-box mr-2"></i> ' + item.name + (numBoxes > 1 ? ` (${i+1}/${item.qty})` : '');
+                
+                // Parse dimensions roughly if present
+                let boxW = 80, boxH = 80;
+                if (item.dim !== 'ไม่ระบุ') {
+                    const parts = item.dim.split(/x|\*/i).map(s=>parseInt(s));
+                    if(parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                        boxW = Math.max(50, parts[0] * 1.5);
+                        boxH = Math.max(50, parts[1] * 1.5);
+                    }
+                }
+                
+                // Add base attributes to hold size
+                el.dataset.origW = boxW;
+                el.dataset.origH = boxH;
+                
+                // Initial styling for list view vs simulator view
+                el.style.width = '100%';
+                el.style.height = 'auto'; 
+                
+                initDragAndDrop(el, dropZone, container);
+                container.appendChild(el);
+            }
+        });
+    };
+    
+    // Simple Drag & Drop implementation
+    function initDragAndDrop(el, dropZone, listContainer) {
+        el.addEventListener('dragstart', (e) => {
+            el.classList.add('is-dragging');
+            e.dataTransfer.setData('text/plain', el.id);
+            const rect = el.getBoundingClientRect();
+            e.dataTransfer.setData('offsetX', e.clientX - rect.left);
+            e.dataTransfer.setData('offsetY', e.clientY - rect.top);
+        });
+        
+        el.addEventListener('dragend', () => {
+            el.classList.remove('is-dragging');
+        });
+        
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text/plain');
+            const dragged = document.getElementById(id);
+            if (dragged) {
+                if (dragged.parentElement === listContainer) {
+                    dropZone.appendChild(dragged);
+                    dragged.classList.add('packed');
+                    dragged.style.width = dragged.dataset.origW + 'px';
+                    dragged.style.height = dragged.dataset.origH + 'px';
+                }
+                
+                const zoneRect = dropZone.getBoundingClientRect();
+                const offsetX = parseFloat(e.dataTransfer.getData('offsetX')) || 0;
+                const offsetY = parseFloat(e.dataTransfer.getData('offsetY')) || 0;
+                
+                let newX = e.clientX - zoneRect.left - offsetX;
+                let newY = e.clientY - zoneRect.top - offsetY;
+                
+                // Boundary check
+                newX = Math.max(0, Math.min(newX, dropZone.clientWidth - dragged.offsetWidth));
+                newY = Math.max(0, Math.min(newY, dropZone.clientHeight - dragged.offsetHeight));
+                
+                dragged.style.left = newX + 'px';
+                dragged.style.top = newY + 'px';
+            }
+        });
+        
+        listContainer.addEventListener('dragover', (e) => e.preventDefault());
+        listContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const id = e.dataTransfer.getData('text/plain');
+            const dragged = document.getElementById(id);
+            if(dragged && dragged.parentElement === dropZone) {
+                dragged.classList.remove('packed');
+                dragged.style.position = 'relative';
+                dragged.style.left = 'auto';
+                dragged.style.top = 'auto';
+                dragged.style.width = '100%';
+                dragged.style.height = 'auto';
+                listContainer.appendChild(dragged);
+            }
+        });
+    }
+    
+    if (btnBackPacking) {
+        btnBackPacking.addEventListener('click', () => {
+            packingSimulatorView.style.display = 'none';
+            packingListView.style.display = 'block';
+            currentPackBookingId = null;
+        });
+    }
+    
+    const btnConfirmPacking = document.getElementById('btn-confirm-packing');
+    if (btnConfirmPacking) {
+        btnConfirmPacking.addEventListener('click', () => {
+            const container = document.getElementById('draggable-items-container');
+            if (container.children.length > 0) {
+                if (!confirm('มีสินค้ายังไม่ได้จัดขึ้นรถระวาง คุณต้องการยืนยันการจัดของเสร็จสิ้นหรือไม่?')) {
+                    return;
+                }
+            }
+            
+            const arrangement = carArrangements.find(a => a.id === currentPackBookingId);
+            if (arrangement) {
+                arrangement.status = 'completed';
+                alert(`✅ การแพ็คของและการจัดเลย์เอาต์ท้ายรถเสร็จสมบูรณ์! เลขที่จัดรถ ${arrangement.id} พร้อมออกเดินทาง`);
+                
+                packingSimulatorView.style.display = 'none';
+                packingListView.style.display = 'block';
+                currentPackBookingId = null;
+                
+                renderPackingTable();
+            }
+        });
+    }
+
+    // === 10. Dashboard Logic ===
+    const mockActiveVehicles = [
+        { vid: 'CB-001', plate: 'AB-1234', type: 'รถบรรทุก 6 ล้อ', driver: 'สมชาย ใจดี', driverPhone: '081-111-1111', requester: 'John Doe', reqDept: 'IT', origin: 'สำนักงานใหญ่', dest: 'ชลบุรี', destCoords: [13.3611, 100.9847], status: 'กำลังเดินทาง', statusColor: 'blue', progress: 45, detail: 'ส่งมอบอุปกรณ์ Server' },
+        { vid: 'CB-002', plate: 'XY-9999', type: 'รถกระบะ', driver: 'สมหมาย สบายใจ', driverPhone: '082-222-2222', requester: 'Jane Doe', reqDept: 'HR', origin: 'โกดัง A', dest: 'ระยอง', destCoords: [12.6831, 101.2816], status: 'เตรียมเดินทาง', statusColor: 'yellow', progress: 10, detail: 'รับเอกสารสำคัญ' },
+        { vid: 'CB-003', plate: 'ZZ-0000', type: 'รถตู้ทึบ', driver: 'อนันต์ ทันใจ', driverPhone: '083-333-3333', requester: 'Admin Team', reqDept: 'Admin', origin: 'สำนักงานใหญ่', dest: 'เชียงใหม่', destCoords: [18.7883, 98.9853], status: 'กำลังพัก', statusColor: 'purple', progress: 70, detail: 'ส่งสินค้าคลังภูมิภาค' }
+    ];
+
+    window.copyTrackingLink = function(vid, plate) {
+        const url = `${window.location.origin}/driver-tracker.html?vid=${vid}&plate=${encodeURIComponent(plate)}`;
+        navigator.clipboard.writeText(url).then(() => {
+            alert('คัดลอกลิ้งค์สำหรับคนขับเรียบร้อยแล้ว:\\n' + url);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            prompt('กรุณาคัดลอกลิ้งค์นี้แทน:', url);
+        });
+    };
+
+    let dashboardMap;
+    let vehicleMarkers = {};
+
+    function initDashboardLiveMap() {
+        try {
+            const mapContainer = document.getElementById('dashboard-live-map');
+            if (!mapContainer || dashboardMap) return;
+            
+            if (typeof L === 'undefined') {
+                console.error('Leaflet is not loaded!');
+                mapContainer.innerHTML = '<div style="padding:20px; color:#ef4444;">Error: Leaflet library not found.</div>';
+                return;
+            }
+
+        // Center on Thailand with Fullscreen enabled
+        dashboardMap = L.map('dashboard-live-map', {
+            center: [13.736717, 100.523186],
+            zoom: 6,
+            fullscreenControl: true,
+            fullscreenControlOptions: {
+                position: 'topleft',
+                title: 'เต็มจอ',
+                titleCancel: 'ออกจากโหมดเต็มจอ'
+            }
+        });
+        
+        // -- Define Map Layers --
+        const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            subdomains: 'abcd',
+            maxZoom: 19
+        });
+        
+        const googleStreets = L.tileLayer('https://{s}.google.com/vt?lyrs=m&x={x}&y={y}&z={z}', {
+            attribution: 'Map data &copy; Google',
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+        
+        const googleSatellite = L.tileLayer('https://{s}.google.com/vt?lyrs=s,h&x={x}&y={y}&z={z}', {
+            attribution: 'Map data &copy; Google',
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+        });
+
+        // Add default layer (Google Maps with POIs)
+        googleStreets.addTo(dashboardMap);
+
+        // Add Layer Control to let user switch maps
+        const baseMaps = {
+            "Google แผนที่ปกติ (ค่าเริ่มต้น)": googleStreets,
+            "Google ดาวเทียม + สถานที่": googleSatellite,
+            "ธีมมืด (Dark Mode)": darkMap
+        };
+
+        L.control.layers(baseMaps, null, {position: 'topright'}).addTo(dashboardMap);
+
+        // Add Search Box (Geocoder)
+        L.Control.geocoder({
+            defaultMarkGeocode: false,
+            placeholder: "ค้นหาสถานที่ตั้ง..."
+        }).on('markgeocode', function(e) {
+            const bbox = e.geocode.bbox;
+            const poly = L.polygon([
+                bbox.getSouthEast(),
+                bbox.getNorthEast(),
+                bbox.getNorthWest(),
+                bbox.getSouthWest()
+            ]).addTo(dashboardMap);
+            dashboardMap.fitBounds(poly.getBounds());
+            
+            // Show a popup with the location name
+            L.popup()
+                .setLatLng(e.geocode.center)
+                .setContent(`<strong style="color:#000;">${e.geocode.name}</strong>`)
+                .openOn(dashboardMap);
+
+            setTimeout(() => dashboardMap.removeLayer(poly), 3000);
+        }).addTo(dashboardMap);
+
+        // Add Locate Control (Find Me)
+        L.control.locate({
+            position: 'topleft',
+            strings: { title: "แสดงตำแหน่งของฉัน" },
+            icon: 'fa-solid fa-location-crosshairs'
+        }).addTo(dashboardMap);
+
+        // Add markers for active vehicles
+        let vehicleRoutes = {};
+        
+        mockActiveVehicles.forEach((v) => {
+            const lat = 13.736717 + (Math.random() - 0.5) * 5; // spread around Thailand
+            const lng = 100.523186 + (Math.random() - 0.5) * 5;
+            
+            const colorHex = v.statusColor === 'blue' ? '#3b82f6' : v.statusColor === 'yellow' ? '#f59e0b' : '#8b5cf6';
+            const icon = L.divIcon({
+                className: 'custom-vehicle-marker',
+                html: `<div style="background-color: ${colorHex}; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px ${colorHex};"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            const marker = L.marker([lat, lng], {icon: icon})
+                .addTo(dashboardMap)
+                .bindPopup(`<strong style="color: #1f2937;">${v.plate}</strong><br><span style="color: ${colorHex}; font-weight: bold;">${v.status}</span><br><small style="color: #6b7280;">ผู้ขับ: ${v.driver}</small><br><br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="display:inline-block; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; text-decoration: none; font-size: 12px; margin-top: 5px;"><i class="fa-solid fa-map-location-dot"></i> นำทางผ่าน Google Maps</a>`);
+            
+            vehicleMarkers[v.vid] = marker;
+
+            // Draw Route Line
+            if (v.destCoords && typeof L.Routing !== 'undefined') {
+                vehicleRoutes[v.vid] = L.Routing.control({
+                    waypoints: [
+                        L.latLng(lat, lng), // Start
+                        L.latLng(v.destCoords[0], v.destCoords[1]) // End
+                    ],
+                    routeWhileDragging: false,
+                    show: false, // hide the text itinerary panel
+                    addWaypoints: false,
+                    fitSelectedRoutes: false,
+                    lineOptions: {
+                        styles: [{color: colorHex, opacity: 0.7, weight: 4}]
+                    },
+                    createMarker: function(i, wp) {
+                        if (i === 1) { // Only destination marker
+                            return L.marker(wp.latLng, {
+                                icon: L.divIcon({
+                                    className: 'custom-dest-marker',
+                                    html: `<div style="background-color: #ef4444; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 8px #ef4444;"></div>`,
+                                    iconSize: [18, 18],
+                                    iconAnchor: [9, 9]
+                                })
+                            }).bindPopup('<b>ปลายทาง:</b> ' + v.dest);
+                        }
+                        return null; // Don't create start marker (we already have truck icon)
+                    }
+                }).addTo(dashboardMap);
+            }
+        });
+
+        // Initial invalidateSize to fix sizing issues if container not fully ready
+        setTimeout(() => {
+            if (dashboardMap) dashboardMap.invalidateSize();
+        }, 800);
+
+        // Fetch Live GPS or Simulate if unavailable
+        setInterval(async () => {
+            try {
+                const liveData = await window.TransportApi.listGps();
+                
+                for (let vid in vehicleMarkers) {
+                    const marker = vehicleMarkers[vid];
+                    let currentPos = marker.getLatLng();
+                    let newLat = currentPos.lat;
+                    let newLng = currentPos.lng;
+                    let updated = false;
+
+                    if (liveData && liveData[vid]) {
+                        // Use real GPS coordinates
+                        newLat = liveData[vid].lat;
+                        newLng = liveData[vid].lng;
+                        updated = true;
+                    } else {
+                        // Fallback: Simulate slight drift towards destination
+                        const vData = mockActiveVehicles.find(mv => mv.vid === vid);
+                        if (vData && vData.destCoords) {
+                            // move slighly towards dest
+                            const destLat = vData.destCoords[0];
+                            const destLng = vData.destCoords[1];
+                            newLat += (destLat - newLat) * 0.005;
+                            newLng += (destLng - newLng) * 0.005;
+                            updated = true;
+                        } else {
+                            newLat += (Math.random() - 0.5) * 0.002;
+                            newLng += (Math.random() - 0.5) * 0.002;
+                            updated = true;
+                        }
+                    }
+
+                    if (updated) {
+                        marker.setLatLng([newLat, newLng]);
+                        
+                        // Update popup with new coordinates
+                        const vData = mockActiveVehicles.find(mv => mv.vid === vid);
+                        if (vData) {
+                            const cHex = vData.statusColor === 'blue' ? '#3b82f6' : vData.statusColor === 'yellow' ? '#f59e0b' : '#8b5cf6';
+                            marker.setPopupContent(`<strong style="color: #1f2937;">${vData.plate}</strong><br><span style="color: ${cHex}; font-weight: bold;">${vData.status}</span><br><small style="color: #6b7280;">ผู้ขับ: ${vData.driver}</small><br><br><a href="https://www.google.com/maps/dir/?api=1&destination=${newLat},${newLng}" target="_blank" style="display:inline-block; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; text-decoration: none; font-size: 12px; margin-top: 5px;"><i class="fa-solid fa-map-location-dot"></i> นำทางผ่าน Google Maps</a>`);
+                        }
+
+                        // Optionally update the starting point of the route line
+                        if (vehicleRoutes[vid] && Math.random() < 0.1) {
+                            const vData = mockActiveVehicles.find(mv => mv.vid === vid);
+                            if (vData && vData.destCoords) {
+                                vehicleRoutes[vid].setWaypoints([
+                                    L.latLng(newLat, newLng),
+                                    L.latLng(vData.destCoords[0], vData.destCoords[1])
+                                ]);
+                            }
+                        }
+                    }
+                }
+            } catch(e) {
+                console.error('Failed to fetch GPS:', e);
+            }
+        }, 3000);
+        } catch (err) {
+            console.error('CRITICAL: Failed to initialize Dashboard Map:', err);
+        }
+    }
+
+    function initDashboard() {
+        initDashboardLiveMap();
+
+        // Render Vehicle Table
+        const tbody = document.getElementById('dashboard-vehicles-table');
+        if (tbody) {
+            tbody.innerHTML = mockActiveVehicles.map(v => `
+                <tr class="clickable-item" data-vid="${v.vid}">
+                    <td>
+                        <strong>${v.plate}</strong>
+                        <button onclick="event.stopPropagation(); copyTrackingLink('${v.vid}', '${v.plate}')" title="คัดลอกลิ้งค์ส่งให้คนขับ" style="background: none; border: none; color: var(--accent-primary); cursor: pointer; float: right;"><i class="fa-solid fa-link"></i></button>
+                        <br><small class="text-secondary">${v.type}</small>
+                    </td>
+                    <td>${v.driver}<br><small class="text-secondary"><i class="fa-solid fa-phone"></i> ${v.driverPhone}</small></td>
+                    <td>${v.requester}<br><small class="text-secondary">${v.reqDept}</small></td>
+                    <td>${v.origin} <i class="fa-solid fa-arrow-right text-muted mx-1"></i> ${v.dest}</td>
+                    <td><span class="badge" style="background: rgba(${v.statusColor === 'blue' ? '59,130,246' : v.statusColor === 'yellow' ? '245,158,11' : '139,92,246'}, 0.2); color: ${v.statusColor === 'blue' ? '#3b82f6' : v.statusColor === 'yellow' ? '#f59e0b' : '#8b5cf6'}; padding: 4px 8px; border-radius: 4px;">${v.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Add Double Click Listeners for Popup Modal
+        const modal = document.getElementById('vehicle-detail-modal');
+        const modalContent = document.getElementById('vehicle-detail-content');
+        const btnCloseModal = document.getElementById('btn-close-vehicle-modal');
+        
+        if (btnCloseModal && modal) {
+            btnCloseModal.addEventListener('click', () => modal.style.display = 'none');
+        }
+        
+        // Double click on Table rows OR Map Pins
+        document.querySelectorAll('.clickable-item').forEach(item => {
+            item.addEventListener('dblclick', function() {
+                const vid = this.getAttribute('data-vid');
+                if (!vid || !modalContent || !modal) return;
+                
+                const vehicle = mockActiveVehicles.find(v => v.vid === vid);
+                if (vehicle) {
+                    modalContent.innerHTML = `
+                        <div style="margin-bottom: 1.5rem; text-align: center;">
+                            <div style="width: 80px; height: 80px; border-radius: 50%; background: #1f2937; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; color: var(--accent-primary); margin: 0 auto 10px; border: 2px solid rgba(255,255,255,0.1);">
+                                <i class="fa-solid ${vehicle.type.includes('บรรทุก') ? 'fa-truck' : 'fa-car'}"></i>
+                            </div>
+                            <h2 style="margin:0; color:#fff;">${vehicle.plate}</h2>
+                            <p class="text-secondary" style="margin:5px 0 0;">${vehicle.type}</p>
+                        </div>
+                        <div class="glass-panel-inner" style="padding: 1rem; margin-bottom: 1rem;">
+                            <h4 style="margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;"><i class="fa-solid fa-user-tie text-accent"></i> ข้อมูลขับรถ</h4>
+                            <p><strong>ชื่อ-สกุล:</strong> ${vehicle.driver}</p>
+                            <p><strong>เบอร์โทร:</strong> ${vehicle.driverPhone}</p>
+                        </div>
+                        <div class="glass-panel-inner" style="padding: 1rem; margin-bottom: 1rem;">
+                            <h4 style="margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;"><i class="fa-solid fa-clipboard-user text-accent"></i> ผู้จองและจุดประสงค์</h4>
+                            <p><strong>ผู้จอง:</strong> ${vehicle.requester} (${vehicle.reqDept})</p>
+                            <p><strong>รายละเอียดงาน:</strong> ${vehicle.detail}</p>
+                        </div>
+                        <div class="glass-panel-inner" style="padding: 1rem;">
+                            <h4 style="margin-top:0; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;"><i class="fa-solid fa-location-dot text-accent"></i> สถานะการเดินทางล่าสุด </h4>
+                            <p><strong>เส้นทาง:</strong> ${vehicle.origin} <i class="fa-solid fa-arrow-right"></i> ${vehicle.dest}</p>
+                            <p><strong>สถานะ:</strong> <span style="color: ${vehicle.statusColor === 'blue' ? '#3b82f6' : vehicle.statusColor === 'yellow' ? '#f59e0b' : '#8b5cf6'}; font-weight: bold;">${vehicle.status}</span></p>
+                            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 10px; overflow: hidden;">
+                                <div style="width: ${vehicle.progress}%; height: 100%; background: ${vehicle.statusColor === 'blue' ? '#3b82f6' : vehicle.statusColor === 'yellow' ? '#f59e0b' : '#8b5cf6'}; transition: width 1s;"></div>
+                            </div>
+                            <small class="text-muted" style="display:block; text-align:right; margin-top:5px;">ความคืบหน้าการเดินทาง: ${vehicle.progress}%</small>
+                        </div>
+                        <div style="margin-top: 1rem; text-align: center;">
+                            <small class="text-secondary"><i class="fa-solid fa-satellite-dish"></i> ผูกตัวรับพิกัดจาก GPS แบบ Real-time</small>
+                            <br>
+                            <button onclick="
+                                const marker = vehicleMarkers ? vehicleMarkers['${vid}'] : null;
+                                let destLat = 13.736717;
+                                let destLng = 100.523186;
+                                if (marker) {
+                                    const pos = marker.getLatLng();
+                                    destLat = pos.lat;
+                                    destLng = pos.lng;
+                                }
+                                window.open('https://www.google.com/maps/dir/?api=1&destination=' + destLat + ',' + destLng, '_blank');
+                            " class="btn" style="background: linear-gradient(135deg, #10b981, #059669); font-size: 0.9rem; padding: 0.5rem 1rem; margin-top: 10px; width: auto;"><i class="fa-solid fa-map-location-dot"></i> นำทางผ่าน Google Maps</button>
+                        </div>
+                    `;
+                    modal.style.display = 'flex';
+                }
+            });
+        });
+
+        // Initialize Charts if Chart.js is loaded
+        if (typeof Chart !== 'undefined') {
+            Chart.defaults.color = '#9ca3af';
+            Chart.defaults.font.family = "'Inter', 'Prompt', sans-serif";
+
+            const ctxPie = document.getElementById('statusPieChart');
+            if (ctxPie) {
+                new Chart(ctxPie, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['กำลังเดินทาง', 'เตรียมเดินทาง', 'ถึงเป้าหมายแล้ว', 'จอดพัก / หลับ'],
+                        datasets: [{
+                            data: [3, 5, 12, 1],
+                            backgroundColor: [
+                                '#3b82f6', // blue
+                                '#f59e0b', // yellow
+                                '#10b981', // green
+                                '#8b5cf6'  // purple
+                            ],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: '#e5e7eb', padding: 20 } }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            }
+
+            const ctxBar = document.getElementById('usageBarChart');
+            if (ctxBar) {
+                new Chart(ctxBar, {
+                    type: 'bar',
+                    data: {
+                        labels: ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์', 'อาทิตย์'],
+                        datasets: [{
+                            label: 'ปริมาณเที่ยวขนส่ง',
+                            data: [12, 19, 15, 25, 22, 10, 8],
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            borderRadius: 6,
+                            barThickness: 'flex',
+                            maxBarThickness: 40
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false } },
+                            x: { grid: { display: false, drawBorder: false } }
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    // -- Route Optimization Initialization --
+    function initRouteOptimization() {
+        try {
+            const mapContainer = document.getElementById('optimizer-map');
+            const listEl = document.getElementById('route-waypoints-list');
+            const btnAddStop = document.getElementById('btn-add-route-stop');
+            const btnCalcRoute = document.getElementById('btn-calc-route');
+            
+            if (!mapContainer || !listEl) return;
+            if (typeof L === 'undefined') {
+                console.error('Leaflet not loaded');
+                mapContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #ef4444;">ข้อผิดพลาด: ไม่สามารถโหลดแผนที่ได้ (Leaflet not found)</div>';
+                return;
+            }
+
+        window.optMap = L.map('optimizer-map').setView([13.736717, 100.523186], 10);
+        const optMap = window.optMap;
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(optMap);
+
+        let routingControl = null;
+        let routeWaypoints = [
+            L.latLng(13.736717, 100.523186), // Default Start (BKK)
+            null // Default empty destination
+        ];
+
+        function renderWaypointList() {
+            if(!listEl) return;
+            
+            listEl.innerHTML = routeWaypoints.map((wp, i) => `
+                <div class="flex-between" style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px;">
+                    <div style="flex-grow: 1; display: flex; align-items: center; gap: 10px;">
+                        <span class="badge" style="background: ${i===0 ? '#3b82f6' : '#ef4444'};">${i===0 ? 'เริ่ม' : 'จุดที่ '+i}</span>
+                        <input type="text" 
+                               class="wp-loc hover-input" 
+                               placeholder="พิมพ์พิกัด (lat,lng) หรือคลิกบนแผนที่เพื่อปักหมุด" 
+                               value="${wp ? (wp.lat.toFixed(4)+','+wp.lng.toFixed(4)) : ''}"
+                               data-index="${i}"
+                               style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 5px 10px; border-radius: 4px; width: 100%;">
+                    </div>
+                    ${i > 1 ? `<button type="button" class="btn-icon text-danger btn-remove-wp" data-index="${i}"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </div>
+            `).join('');
+
+            listEl.querySelectorAll('.wp-loc').forEach(inp => {
+                inp.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.getAttribute('data-index'));
+                    const vals = e.target.value.split(',');
+                    if (vals.length >= 2) {
+                        const lat = parseFloat(vals[0].trim());
+                        const lng = parseFloat(vals[1].trim());
+                        if (!isNaN(lat) && !isNaN(lng)) {
+                            routeWaypoints[idx] = L.latLng(lat, lng);
+                        }
+                    }
+                });
+            });
+
+            listEl.querySelectorAll('.btn-remove-wp').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = parseInt(e.currentTarget.getAttribute('data-index'));
+                    routeWaypoints.splice(idx, 1);
+                    renderWaypointList();
+                    
+                    // Auto recalculate after removing
+                    if(btnCalcRoute && routeWaypoints.filter(wp => wp !== null).length >= 2) {
+                        btnCalcRoute.click();
+                    }
+                });
+            });
+        }
+
+        renderWaypointList();
+
+        if(btnAddStop) {
+            btnAddStop.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('btnAddStop clicked');
+                routeWaypoints.push(null);
+                renderWaypointList();
+                
+                // Focus the newly added input
+                const inputs = listEl.querySelectorAll('.wp-loc');
+                if (inputs.length > 0) {
+                    const lastInp = inputs[inputs.length - 1];
+                    lastInp.focus();
+                    listEl.scrollTop = listEl.scrollHeight;
+                }
+            });
+        }
+        
+        // Map Click to Add Waypoint
+        optMap.on('click', function(e) {
+            console.log('Map clicked at', e.latlng);
+            let emptyIdx = routeWaypoints.findIndex(wp => wp === null);
+            if (emptyIdx === -1) {
+                // If all filled, push a new one
+                routeWaypoints.push(e.latlng);
+            } else {
+                // Fill the empty one
+                routeWaypoints[emptyIdx] = e.latlng;
+            }
+            renderWaypointList();
+            
+            // Auto recalculate route to show immediate visual feedback
+            if(btnCalcRoute && routeWaypoints.filter(wp => wp !== null).length >= 2) {
+                btnCalcRoute.click();
+            }
+        });
+
+        if(btnCalcRoute) {
+            btnCalcRoute.addEventListener('click', () => {
+                const activeWps = routeWaypoints.filter(wp => wp !== null);
+                if (activeWps.length < 2) {
+                    alert('กรุณาระบุจุดเริ่มต้นและจุดปลายทาง (พิกัด lat,lng) อย่างน้อย 1 คู่');
+                    return;
+                }
+
+                if (routingControl) {
+                    optMap.removeControl(routingControl);
+                }
+
+                if (typeof L.Routing === 'undefined') {
+                    alert('ไม่สามารถโหลดระบบนำทาง (Routing Machine) ได้ในขณะนี้ กรุณารีเฟรชหน้าเว็บหรือตรวจสอบอินเทอร์เน็ต');
+                    return;
+                }
+
+                // Add loading indicator manually
+                document.getElementById('route-total-distance').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                document.getElementById('route-total-time').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+                routingControl = L.Routing.control({
+                    waypoints: activeWps,
+                    routeWhileDragging: true,
+                    show: false, // hide instructions panel to keep UI clean
+                    lineOptions: {
+                        styles: [{color: '#10b981', opacity: 0.8, weight: 6}]
+                    },
+                    createMarker: function(i, wp, nWps) {
+                        return L.marker(wp.latLng, {
+                            icon: L.divIcon({
+                                className: 'custom-route-marker',
+                                html: `<div style="background-color: ${i===0?'#3b82f6':'#ef4444'}; width: 24px; height: 24px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);">${i===0?'S':i}</div>`,
+                                iconSize: [28, 28],
+                                iconAnchor: [14, 14]
+                            })
+                        }).bindPopup(i===0?'จุดเริ่มต้น':('จุดที่ '+i));
+                    }
+                }).addTo(optMap);
+
+                routingControl.on('routesfound', function(e) {
+                    const routes = e.routes;
+                    const summary = routes[0].summary;
+                    document.getElementById('route-total-distance').textContent = (summary.totalDistance / 1000).toFixed(2) + ' กม.';
+                    const totalMinutes = Math.round(summary.totalTime / 60);
+                    const hours = Math.floor(totalMinutes / 60);
+                    const mins = totalMinutes % 60;
+                    document.getElementById('route-total-time').textContent = hours > 0 ? `${hours} ชม. ${mins} นาที` : `${mins} นาที`;
+                });
+                
+                routingControl.on('routingerror', function(e) {
+                    alert('ไม่สามารถคำนวณเส้นทางได้ กรุณาตรวจสอบพิกัดหรือการเชื่อมต่ออินเทอร์เน็ต');
+                    document.getElementById('route-total-distance').textContent = 'Error';
+                    document.getElementById('route-total-time').textContent = 'Error';
+                });
+            });
+        }
+
+        const btnOptimizeRoute = document.getElementById('btn-optimize-route');
+        if(btnOptimizeRoute) {
+            btnOptimizeRoute.addEventListener('click', () => {
+                const activeWps = routeWaypoints.filter(wp => wp !== null);
+                if (activeWps.length <= 2) {
+                    alert('การจัดลำดับต้องการจุดหมายระหว่างทางอย่างน้อย 2 จุด (ไม่นับจุดเริ่มต้น)');
+                    return;
+                }
+                
+                const start = activeWps[0];
+                let unvisited = activeWps.slice(1);
+                let optimized = [start];
+                let current = start;
+
+                while (unvisited.length > 0) {
+                    let nearestIdx = 0;
+                    let minDist = Infinity;
+                    for (let i = 0; i < unvisited.length; i++) {
+                        const dist = current.distanceTo(unvisited[i]);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            nearestIdx = i;
+                        }
+                    }
+                    current = unvisited[nearestIdx];
+                    optimized.push(current);
+                    unvisited.splice(nearestIdx, 1);
+                }
+                
+                routeWaypoints = optimized;
+                routeWaypoints.push(null);
+                
+                renderWaypointList();
+                if(btnCalcRoute) btnCalcRoute.click();
+            });
+        }
+
+        const btnSaveRoute = document.getElementById('btn-save-route-plan');
+        if(btnSaveRoute) {
+            btnSaveRoute.addEventListener('click', () => {
+                const selectEl = document.getElementById('route-vehicle-select');
+                if(!selectEl || !selectEl.value) {
+                    alert('กรุณาเลือกรถที่จะใช้สำหรับเส้นทางนี้');
+                    return;
+                }
+                
+                const activeWps = routeWaypoints.filter(wp => wp !== null);
+                if(activeWps.length < 2) {
+                    alert('กรุณาคำนวณเส้นทางก่อนบันทึก');
+                    return;
+                }
+                
+                const vehicleText = selectEl.options[selectEl.selectedIndex].text;
+                alert(`บันทึกแผนงานและสร้างงานจัดส่งให้กับรถ [${vehicleText}] สำเร็จเรียบร้อยแล้ว! ข้อมูลถูกส่งเข้าสู่ระบบของคนขับแล้ว.`);
+                
+                routeWaypoints = [
+                    L.latLng(13.736717, 100.523186),
+                    null
+                ];
+                renderWaypointList();
+                document.getElementById('route-total-distance').textContent = '0 กม.';
+                document.getElementById('route-total-time').textContent = '0 นาที';
+                if(routingControl) {
+                    optMap.removeControl(routingControl);
+                    routingControl = null;
+                }
+                selectEl.value = '';
+            });
+        }
+
+        // Fix map sizing on tab switch
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (btn.getAttribute('data-target') === 'route-optimization') {
+                    setTimeout(() => {
+                        optMap.invalidateSize();
+                    }, 200);
+                }
+            });
+        });
+        } catch (err) {
+            console.error('Error in initRouteOptimization:', err);
+        }
+    }
+
+    // -- Load Planning Module --
+    function initLoadPlanning() {
+        const truckSelect = document.getElementById('packing-truck-select');
+        const cargoPool = document.getElementById('cargo-pool-list');
+        const truckBed = document.getElementById('truck-bed-container');
+        const unassignedCount = document.getElementById('packing-unassigned-count');
+        const btnAutoPack = document.getElementById('btn-auto-pack');
+        const btnReset = document.getElementById('btn-reset-pack');
+
+        if (!truckSelect || !cargoPool || !truckBed) return;
+
+        const truckCapacities = {
+            '4W': { weight: 1500, volume: 10 },
+            '6W': { weight: 5000, volume: 30 },
+            '10W': { weight: 15000, volume: 60 }
+        };
+
+        let currentCargo = [
+            { id: 1, name: 'P-001: อะไหล่แอร์', weight: 450, vol: 2.5, qty: 2 },
+            { id: 2, name: 'P-002: มอเตอร์ไฟฟ้า', weight: 800, vol: 4.2, qty: 1 },
+            { id: 3, name: 'P-003: สายไฟม้วนใหญ่', weight: 1200, vol: 6.0, qty: 2 },
+            { id: 4, name: 'P-004: แผงควบคุม', weight: 300, vol: 1.5, qty: 3 },
+            { id: 5, name: 'P-005: น็อตและสกรู', weight: 200, vol: 0.8, qty: 5 }
+        ];
+
+        let assignedCargo = [];
+
+        function renderCargoPool() {
+            cargoPool.innerHTML = '';
+            let count = 0;
+            currentCargo.forEach(item => {
+                for(let i=0; i<item.qty; i++) {
+                    const cargoEl = document.createElement('div');
+                    cargoEl.className = 'cargo-box';
+                    cargoEl.draggable = true;
+                    cargoEl.id = `cargo-${item.id}-${Date.now()}-${i}`;
+                    cargoEl.innerHTML = `
+                        <strong>${item.name}</strong>
+                        <div class="cargo-tag">${item.weight} kg / ${item.vol} CBM</div>
+                    `;
+                    
+                    cargoEl.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('application/json', JSON.stringify({id: item.id, weight: item.weight, vol: item.vol, name: item.name}));
+                        cargoEl.classList.add('dragging');
+                    });
+
+                    cargoEl.addEventListener('dragend', () => {
+                        cargoEl.classList.remove('dragging');
+                    });
+
+                    cargoPool.appendChild(cargoEl);
+                    count++;
+                }
+            });
+            unassignedCount.textContent = count + ' ชิ้น';
+        }
+
+        function updatePackingStats() {
+            const selectedTruck = truckSelect.value;
+            const cap = truckCapacities[selectedTruck];
+            
+            const totalWeight = assignedCargo.reduce((sum, item) => sum + item.weight, 0);
+            const totalVol = assignedCargo.reduce((sum, item) => sum + item.vol, 0);
+            
+            const weightPct = Math.min(100, Math.round((totalWeight / cap.weight) * 100));
+            const volPct = Math.min(100, Math.round((totalVol / cap.volume) * 100));
+            
+            document.getElementById('packing-weight-text').textContent = `${totalWeight.toLocaleString()} / ${cap.weight.toLocaleString()} kg`;
+            document.getElementById('packing-weight-percent').textContent = weightPct + '%';
+            document.getElementById('packing-weight-bar').style.width = weightPct + '%';
+            document.getElementById('packing-weight-bar').style.backgroundColor = weightPct > 90 ? '#ef4444' : '#f97316';
+            
+            document.getElementById('packing-vol-text').textContent = `${totalVol.toFixed(1)} / ${cap.volume} CBM`;
+            document.getElementById('packing-vol-percent').textContent = volPct + '%';
+            document.getElementById('packing-vol-bar').style.width = volPct + '%';
+            document.getElementById('packing-vol-bar').style.backgroundColor = volPct > 90 ? '#ef4444' : '#3b82f6';
+            
+            const placeholder = document.getElementById('truck-bed-placeholder');
+            if(assignedCargo.length > 0) {
+                placeholder.style.display = 'none';
+            } else {
+                placeholder.style.display = 'block';
+            }
+        }
+
+        truckBed.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            truckBed.classList.add('drag-over');
+        });
+
+        truckBed.addEventListener('dragleave', () => {
+            truckBed.classList.remove('drag-over');
+        });
+
+        truckBed.addEventListener('drop', (e) => {
+            e.preventDefault();
+            truckBed.classList.remove('drag-over');
+            
+            const jsonData = e.dataTransfer.getData('application/json');
+            if(!jsonData) return;
+            const data = JSON.parse(jsonData);
+            
+            // Check capacity
+            const selectedTruck = truckSelect.value;
+            const cap = truckCapacities[selectedTruck];
+            const totalWeight = assignedCargo.reduce((sum, item) => sum + item.weight, 0);
+            
+            if (totalWeight + data.weight > cap.weight) {
+                alert('น้ำหนักเกินขีดจำกัดของรถคันนี้!');
+                return;
+            }
+
+            // Move from pool to assigned
+            assignedCargo.push(data);
+            
+            // Remove from currentCargo (decrement qty)
+            const itemIdx = currentCargo.findIndex(i => i.id === data.id);
+            if(itemIdx !== -1) {
+                currentCargo[itemIdx].qty--;
+                if(currentCargo[itemIdx].qty === 0) {
+                    currentCargo.splice(itemIdx, 1);
+                }
+            }
+            
+            // Visual element in truck
+            const droppedEl = document.createElement('div');
+            droppedEl.className = 'cargo-box';
+            droppedEl.style.minWidth = '100px';
+            droppedEl.style.padding = '8px';
+            droppedEl.style.fontSize = '0.75rem';
+            droppedEl.innerHTML = `<strong>${data.name.split(':')[0]}</strong><div class="cargo-tag">${data.weight}kg</div>`;
+            truckBed.appendChild(droppedEl);
+            
+            renderCargoPool();
+            updatePackingStats();
+        });
+
+        btnAutoPack.addEventListener('click', () => {
+            const selectedTruck = truckSelect.value;
+            const cap = truckCapacities[selectedTruck];
+            
+            // Simple greedy packing
+            currentCargo.sort((a,b) => b.weight - a.weight); // Pack heavy first
+            
+            let totalWeight = assignedCargo.reduce((sum, item) => sum + item.weight, 0);
+            
+            for (let i = currentCargo.length - 1; i >= 0; i--) {
+                const item = currentCargo[i];
+                while(item.qty > 0 && totalWeight + item.weight <= cap.weight) {
+                    totalWeight += item.weight;
+                    const data = {id: item.id, name: item.name, weight: item.weight, vol: item.vol};
+                    assignedCargo.push(data);
+                    item.qty--;
+                    
+                    const droppedEl = document.createElement('div');
+                    droppedEl.className = 'cargo-box';
+                    droppedEl.style.minWidth = '100px';
+                    droppedEl.style.padding = '8px';
+                    droppedEl.style.fontSize = '0.75rem';
+                    droppedEl.innerHTML = `<strong>${data.name.split(':')[0]}</strong><div class="cargo-tag">${data.weight}kg</div>`;
+                    truckBed.appendChild(droppedEl);
+                }
+                if(item.qty === 0) currentCargo.splice(i, 1);
+            }
+            
+            renderCargoPool();
+            updatePackingStats();
+        });
+
+        btnReset.addEventListener('click', () => {
+            // Restore all to pool
+            currentCargo = [
+                { id: 1, name: 'P-001: อะไหล่แอร์', weight: 450, vol: 2.5, qty: 2 },
+                { id: 2, name: 'P-002: มอเตอร์ไฟฟ้า', weight: 800, vol: 4.2, qty: 1 },
+                { id: 3, name: 'P-003: สายไฟม้วนใหญ่', weight: 1200, vol: 6.0, qty: 2 },
+                { id: 4, name: 'P-004: แผงควบคุม', weight: 300, vol: 1.5, qty: 3 },
+                { id: 5, name: 'P-005: น็อตและสกรู', weight: 200, vol: 0.8, qty: 5 }
+            ];
+            assignedCargo = [];
+            
+            // Clear truck bed but keep placeholder
+            const placeholder = document.getElementById('truck-bed-placeholder');
+            truckBed.innerHTML = '';
+            truckBed.appendChild(placeholder);
+            
+            renderCargoPool();
+            updatePackingStats();
+        });
+
+        truckSelect.addEventListener('change', updatePackingStats);
+
+        renderCargoPool();
+        updatePackingStats();
+    }
+
+    // -- Delivery Scheduling Module --
+    const deliveryScheduleBody = document.getElementById('delivery-schedule-body');
+    
+    function renderScheduleTable() {
+        if (!deliveryScheduleBody) return;
+        
+        // Mock Trips (In a real app, this would come from LB/Route Save)
+        const mockTrips = [
+            { id: 'JOB-9001', car: '6W-8492', driver: 'สมชาย ใจดี', origin: 'โกดัง A', dest: 'ชลบุรี', start: '08:00', eta: '11:30', status: 'in_transit' },
+            { id: 'JOB-9002', car: '4W-1122', driver: 'สมศรี มีชัย', origin: 'สำนักงานใหญ่', dest: 'สมุทรปราการ', start: '13:00', eta: '14:30', status: 'scheduled' },
+            { id: 'JOB-9003', car: '10W-5555', driver: 'สมศักดิ์ รักชาติ', origin: 'ท่าเรือแหลมฉบัง', dest: 'พระนครศรีอยุธยา', start: '06:00', eta: '09:00', status: 'delivered' }
+        ];
+
+        const carFilter = document.getElementById('schedule-filter-car') ? document.getElementById('schedule-filter-car').value : 'all';
+        const statusFilter = document.getElementById('schedule-filter-status') ? document.getElementById('schedule-filter-status').value : 'all';
+
+        const filtered = mockTrips.filter(t => {
+            const matchCar = carFilter === 'all' || t.car === carFilter;
+            const matchStatus = statusFilter === 'all' || t.status === statusFilter;
+            return matchCar && matchStatus;
+        });
+
+        if (filtered.length === 0) {
+            deliveryScheduleBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">ไม่พบข้อมูลที่ตรงตามเงื่อนไข</td></tr>';
+        } else {
+            deliveryScheduleBody.innerHTML = filtered.map(t => `
+                <tr>
+                    <td><strong>${t.id}</strong></td>
+                    <td>${t.car}<br><small class="text-secondary">${t.driver}</small></td>
+                    <td>${t.origin} <i class="fa-solid fa-arrow-right mx-1" style="font-size:0.75rem;"></i> ${t.dest}</td>
+                    <td>${t.start} - <span class="text-accent">${t.eta}</span></td>
+                    <td>
+                        <span class="badge" style="background: ${t.status === 'delivered' ? 'rgba(16, 185, 129, 0.2)' : t.status === 'in_transit' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(245, 158, 11, 0.2)'}; color: ${t.status === 'delivered' ? '#10b981' : t.status === 'in_transit' ? '#3b82f6' : '#f59e0b'}; padding: 4px 8px; border-radius: 4px;">
+                            ${t.status === 'delivered' ? 'ส่งมอบแล้ว' : t.status === 'in_transit' ? 'กำลังเดินทาง' : 'กำหนดการแล้ว'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn-icon text-accent" title="ดูรายละเอียด"><i class="fa-solid fa-eye"></i></button>
+                        <button class="btn-icon text-primary" title="แก้ไขเวลา"><i class="fa-solid fa-clock"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    // Expose globally for filters
+    window.renderScheduleTable = renderScheduleTable;
+
+    // -- Fleet Management (Maintenance & Fuel) --
+    const btnAddMaintenance = document.getElementById('btn-add-maintenance');
+    if (btnAddMaintenance) {
+        btnAddMaintenance.addEventListener('click', () => {
+            alert('เปิดฟอร์มบันทึกการซ่อมบำรุง (Maintenance Form)... \n[Feature logic to be connected with DB]');
+        });
+    }
+
+    const btnAddFuelLog = document.getElementById('btn-add-fuel-log');
+    if (btnAddFuelLog) {
+        btnAddFuelLog.addEventListener('click', () => {
+            alert('เปิดฟอร์มบันทึกการเติมน้ำมัน (Fuel Log Form)... \n[Feature logic to be connected with DB]');
+        });
+    }
+
+    // -- Dashboard Map and Charts Logic --
+    window.dashboardMap = null;
+    
+    function initDashboard() {
+        // 1. Initialize Leaflet Map
+        try {
+            const mapContainer = document.getElementById('dashboard-live-map');
+            if (mapContainer && !window.dashboardMap) {
+                if (typeof L === 'undefined') {
+                    mapContainer.innerHTML = '<div style="color: #ef4444; padding: 20px; text-align: center; border: 1px dashed #ef4444; height: 100%; display:flex; align-items:center; justify-content:center;">⚠️ ไม่สามารถโหลดแผนที่ได้: กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต (Leaflet CDN is blocked)</div>';
+                } else {
+                    window.dashboardMap = L.map('dashboard-live-map').setView([13.736717, 100.523186], 6); // Centered on Thailand
+                    
+                    // Add OpenStreetMap tiles
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(window.dashboardMap);
+
+                    // Mock Vehicles with animated or static icons
+                    const mockVehicles = [
+                        { id: 'กท 1234', lat: 13.736717, lng: 100.523186, status: 'traveling', driver: 'สมชาย มั่นคง', dest: 'ชลบุรี' },
+                        { id: 'ชร 9999', lat: 18.7883, lng: 98.9853, status: 'resting', driver: 'วิเชียร ใจดี', dest: 'เชียงใหม่' },
+                        { id: 'ขก 5555', lat: 16.4322, lng: 102.8236, status: 'preparing', driver: 'สมศักดิ์ รักชาติ', dest: 'ขอนแก่น' },
+                        { id: 'สง 8888', lat: 7.0080, lng: 100.4639, status: 'arrived', driver: 'นที สินทรัพย์', dest: 'สงขลา' }
+                    ];
+
+                    const markers = [];
+                    mockVehicles.forEach((v, index) => {
+                        let color = '#3b82f6'; // traveling (blue)
+                        if (v.status === 'arrived') color = '#10b981'; // green
+                        else if (v.status === 'preparing') color = '#f59e0b'; // orange
+                        else if (v.status === 'resting') color = '#8b5cf6'; // purple
+
+                        const iconHtml = `
+                            <div style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);">
+                                <i class="fa-solid fa-truck"></i>
+                            </div>
+                        `;
+                        
+                        const customIcon = L.divIcon({
+                            className: 'custom-vehicle-marker',
+                            html: iconHtml,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                        });
+
+                        const marker = L.marker([v.lat, v.lng], { icon: customIcon }).addTo(window.dashboardMap)
+                            .bindPopup(`<b>ทะเบียน: ${v.id}</b><br>คนขับ: ${v.driver}<br>ปลายทาง: ${v.dest}`);
+                        
+                        markers.push(marker);
+
+                        // Simple simulated animation: Move marker slightly over time
+                        if (v.status === 'traveling') {
+                            setInterval(() => {
+                                const newLat = marker.getLatLng().lat + (Math.random() - 0.5) * 0.01;
+                                const newLng = marker.getLatLng().lng + (Math.random() - 0.5) * 0.01;
+                                marker.setLatLng([newLat, newLng]);
+                            }, 3000); // update every 3 seconds
+                        }
+                    });
+                    
+                    // Adjust bounds to fit all markers
+                    const group = L.featureGroup(markers);
+                    window.dashboardMap.fitBounds(group.getBounds().pad(0.1));
+                    
+                    // Fix rendering if map wasn't strictly visible at 0ms
+                    setTimeout(() => {
+                        window.dashboardMap.invalidateSize();
+                    }, 400);
+                }
+            }
+        } catch (e) { console.error('Map init error:', e); }
+
+        // 2. Initialize Pie Chart
+        try {
+            const pieCtx = document.getElementById('statusPieChart');
+            if (pieCtx) {
+                if (typeof Chart === 'undefined') {
+                    pieCtx.parentElement.innerHTML = '<div style="color: #ef4444; text-align:center; padding: 20px;">⚠️ ขาดไลบรารี Chart.js</div>';
+                } else {
+                    new Chart(pieCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['กำลังเดินทาง', 'ถึงเป้าหมายแล้ว', 'เตรียมเดินทาง', 'จอดพัก / หลับ'],
+                            datasets: [{
+                                data: [3, 12, 5, 1],
+                                backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+                                borderWidth: 0,
+                                hoverOffset: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { position: 'bottom', labels: { color: '#ccc' } }
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (e) { console.error('Pie Chart error:', e); }
+
+        // 3. Initialize Bar Chart
+        try {
+            const barCtx = document.getElementById('usageBarChart');
+            if (barCtx) {
+                if (typeof Chart === 'undefined') {
+                    barCtx.parentElement.innerHTML = '<div style="color: #ef4444; text-align:center; padding: 20px;">⚠️ ขาดไลบรารี Chart.js</div>';
+                } else {
+                    new Chart(barCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'],
+                            datasets: [{
+                                label: 'ปริมาณงานจัดส่ง (เที่ยว)',
+                                data: [15, 19, 13, 22, 28, 10, 5],
+                                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                                borderColor: '#3b82f6',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#999' } },
+                                x: { grid: { display: false }, ticks: { color: '#999' } }
+                            },
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                }
+            }
+        } catch (e) { console.error('Bar Chart error:', e); }
+
+        // 4. Populate Vehicles Table
+        try {
+            const vehiclesTableBody = document.getElementById('dashboard-vehicles-table');
+            if (vehiclesTableBody) {
+                const tableData = [
+                    { id: 'กท 1234', driver: 'สมชาย มั่นคง', booker: 'ฝ่ายขาย (คุณเอนก)', route: 'BKK - ชลบุรี', status: 'traveling' },
+                    { id: 'ชร 9999', driver: 'วิเชียร ใจดี', booker: 'ฝ่ายบุคคล', route: 'BKK - เชียงใหม่', status: 'resting' },
+                    { id: 'ขก 5555', driver: 'สมศักดิ์ รักชาติ', booker: 'ฝ่ายจัดซื้อ', route: 'ระยอง - ขอนแก่น', status: 'preparing' },
+                    { id: 'สง 8888', driver: 'นที สินทรัพย์', booker: 'คลังสินค้า', route: 'BKK - สงขลา', status: 'arrived' },
+                    { id: 'นบ 2024', driver: 'ธีระพงษ์', booker: 'ฝ่ายการตลาด', route: 'BKK - นนทบุรี', status: 'traveling' }
+                ];
+
+                let tableHtml = '';
+                tableData.forEach(v => {
+                    let badgeClass = 'rgba(59, 130, 246, 0.2)';
+                    let textColor = '#3b82f6';
+                    let statusText = 'กำลังเดินทาง';
+                    
+                    if (v.status === 'arrived') { badgeClass = 'rgba(16, 185, 129, 0.2)'; textColor = '#10b981'; statusText = 'ถึงเป้าหมาย'; }
+                    else if (v.status === 'preparing') { badgeClass = 'rgba(245, 158, 11, 0.2)'; textColor = '#f59e0b'; statusText = 'เตรียมเดินทาง'; }
+                    else if (v.status === 'resting') { badgeClass = 'rgba(139, 92, 246, 0.2)'; textColor = '#8b5cf6'; statusText = 'จอดพัก'; }
+
+                    tableHtml += `
+                        <tr class="vehicle-row" data-id="${v.id}" data-driver="${v.driver}" data-route="${v.route}" data-status="${statusText}" style="cursor: pointer;">
+                            <td><strong>${v.id}</strong></td>
+                            <td>${v.driver}</td>
+                            <td>${v.booker}</td>
+                            <td>${v.route}</td>
+                            <td><span class="badge" style="background: ${badgeClass}; color: ${textColor}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">${statusText}</span></td>
+                        </tr>
+                    `;
+                });
+                vehiclesTableBody.innerHTML = tableHtml;
+
+                // Add double-click events for Modal
+                vehiclesTableBody.querySelectorAll('.vehicle-row').forEach(row => {
+                    row.addEventListener('dblclick', () => {
+                        openVehicleModal(row.dataset);
+                    });
+                });
+            }
+        } catch (e) { console.error('Table error:', e); }
+    }
+
+    function openVehicleModal(data) {
+        const modal = document.getElementById('vehicle-detail-modal');
+        const content = document.getElementById('vehicle-detail-content');
+        if (modal && content) {
+            content.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <i class="fa-solid fa-truck-fast fa-3x text-accent mb-2"></i>
+                    <h2 class="text-primary-gradient" style="margin: 0;">${data.id}</h2>
+                    <div class="text-secondary">คนขับ: ${data.driver}</div>
+                </div>
+                <div class="glass-panel-inner" style="background: rgba(0,0,0,0.3);">
+                    <ul style="list-style: none; padding: 0; margin: 0; line-height: 2;">
+                        <li><strong><i class="fa-solid fa-route" style="width: 25px; text-align: center;"></i> เส้นทาง:</strong> ${data.route}</li>
+                        <li><strong><i class="fa-solid fa-circle-info" style="width: 25px; text-align: center;"></i> สถานะ:</strong> <span class="text-accent">${data.status}</span></li>
+                        <li><strong><i class="fa-solid fa-clock" style="width: 25px; text-align: center;"></i> อัปเดตล่าสุด:</strong> ${new Date().toLocaleTimeString('th-TH')} น.</li>
+                        <li><strong><i class="fa-solid fa-temperature-half" style="width: 25px; text-align: center;"></i> อุณหภูมิตู้:</strong> 4.5 °C (ปกติ)</li>
+                        <li><strong><i class="fa-solid fa-gauge" style="width: 25px; text-align: center;"></i> ความเร็วปัจจุบัน:</strong> ${data.status.includes('เดินทาง') ? '65 กม./ชม.' : '0 กม./ชม.'}</li>
+                    </ul>
+                </div>
+                <div class="form-actions mt-4">
+                    <button class="btn btn-primary w-full" onclick="document.getElementById('vehicle-detail-modal').classList.remove('active'); document.getElementById('vehicle-detail-modal').style.display='none';"><i class="fa-solid fa-check"></i> ตกลง</button>
+                </div>
+            `;
+            modal.classList.add('active');
+            modal.style.display = 'flex';
+        }
+    }
+    
+    // Close modal event (if clicking outside or close button)
+    const btnCloseVehicleModal = document.getElementById('btn-close-vehicle-modal');
+    if (btnCloseVehicleModal) {
+        btnCloseVehicleModal.addEventListener('click', () => {
+            const modal = document.getElementById('vehicle-detail-modal');
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        });
+    }
+
+    // -- Final Initialization --
+    try {
+        initFuelPrices();
+        if (typeof initDashboard === 'function') initDashboard();
+        if (typeof window.loadAdminData === 'function') window.loadAdminData();
+        if (typeof window.renderCarArrangementTable === 'function') window.renderCarArrangementTable();
+        if (typeof window.renderPackingTable === 'function') window.renderPackingTable();
+        initRouteOptimization();
+        initLoadPlanning();
+        renderScheduleTable();
+    } catch (e) {
+        console.error('General initialization error:', e);
+    }
+});

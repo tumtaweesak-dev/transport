@@ -1,0 +1,56 @@
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset="utf-8">
+<style>
+body { font-family: 'Sarabun', 'TH Sarabun New', 'Angsana New', sans-serif; line-height: 1.5; font-size: 16pt; }
+h1 { font-size: 24pt; color: #1e3a8a; text-align: center; }
+h2 { font-size: 18pt; color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 5px; }
+h3 { font-size: 16pt; color: #1d4ed8; }
+ul { margin-bottom: 15px; }
+li { margin-bottom: 5px; }
+.box { border: 1px solid #94a3b8; padding: 15px; margin-bottom: 20px; text-align: center; background-color: #f8fafc; font-weight: bold; }
+.arrow { text-align: center; font-size: 24pt; color: #64748b; margin: -15px 0 5px 0; }
+</style>
+</head>
+<body>
+<h1>แผนภาพระบบ TMS Pro (Transport Management System)</h1>
+
+<h2>1. ระบบขออนุมัติเดินทาง (Travel Approval Flow)</h2>
+<p>กระบวนการขออนุมัติและเดินทางสำหรับบุคลากร</p>
+<div class="box">สร้างแผนการเดินทาง (พนักงาน) <br><small>ระบุข้อมูลจุดหมาย ระยะทาง และค่าใช้จ่าย</small></div>
+<div class="arrow">↓</div>
+<div class="box">อนุมัติโดยหัวหน้างาน (Manager)</div>
+<div class="arrow">↓</div>
+<div class="box">ตรวจสอบสิทธิประโยชน์ (HR)</div>
+<div class="arrow">↓</div>
+<div class="box">อนุมัติขั้นสุดท้าย (MD)</div>
+<div class="arrow">↓</div>
+<div class="box">ทำจ่ายเงินชดเชยค่าเดินทาง (Accounting)</div>
+
+<h2>2. ระบบจองรถและจัดส่ง (Car Booking & Logistics Flow)</h2>
+<p>กระบวนการจัดสรรรถยนต์ให้เพียงพอต่องานแต่ละประเภท</p>
+<div class="box">จองรถ (Car Booking) <br><small>เลือกว่าเป็น งานธุรการ (Admin) หรือ งานส่งของ (Delivery)</small></div>
+<div class="arrow">↓</div>
+<div class="box">จัดรถ (Car Arrangement) <br><small>เลือกรถและคนขับ สามารถรวบยอดการจองหลายอันไปในรอบขับเดียวกันได้</small></div>
+<div class="arrow">↓</div>
+<div class="box">จัดของ (Packing Simulator) <br><small>*เฉพาะงานส่งของ: จำลองพื้นที่ท้ายรถและลากกล่องสินค้าใส่เพื่อจัดการพื้นที่ขนส่ง</small></div>
+<div class="arrow">↓</div>
+<div class="box">สินค้า/รถ พร้อมเดินทาง</div>
+
+<h2>3. ระบบติดตามยานพาหนะ (Live GPS Tracking)</h2>
+<p>ระบบติดตามตำแหน่งรถขนส่งแบบเรียลไทม์ระหว่างทำธุรกิจ</p>
+<div class="box">เริ่มต้นปฏิบัติงาน <br><small>คนขับเปิดหน้าระบบมือถือ (driver-tracker.html) กดเริ่มส่งข้อมูล GPS</small></div>
+<div class="arrow">↓</div>
+<div class="box">อัปเดตข้อมูลพิกัด (Server) <br><small>ส่ง Lat/Lng ย้อนกลับไปยังฐานข้อมูล API ทันที</small></div>
+<div class="arrow">↓</div>
+<div class="box">แสดงพิกัดบนแผนที่หลัก (Dashboard) <br><small>ผู้ดูแลระบบสามารถคลิกไอคอนรถที่เคลื่อนที่อยู่เพื่อเปิดระบบ นำทางสู่พิกัดนั้นผ่าน Google Maps ได้ทันที</small></div>
+
+<h2>ข้อมูลเพิ่มเติม (โครงสร้าง Backend & Admin)</h2>
+<ul>
+    <li><b>จัดการข้อมูลพนักงาน:</b> เพิ่ม/ลบ สิทธิ์พนักงานเพื่อรองรับการล็อกอินยืนยันตัวตน</li>
+    <li><b>จัดการข้อมูลรถขนส่ง:</b> เพิ่มคลังข้อมูลจำนวนรถยนต์แยกตามประเภทและเลขป้ายทะเบียน</li>
+    <li><b>เชื่อมต่อ API:</b> มี Express Server กลางจัดการ Database ผ่าน Endpoint /api/users, /api/cars และ /api/gps ตลอดวัน</li>
+</ul>
+
+</body>
+</html>

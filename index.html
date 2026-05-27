@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transport Management System</title>
+    <link rel="stylesheet" href="css/styles.css?v=28">
+    <!-- Using Google Fonts: Inter & Playfair Display -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet JS for Maps (Local Offline Version) -->
+    <link rel="stylesheet" href="map/leaflet.css">
+    <script src="map/leaflet.js"></script>
+
+    <!-- Map Plugins (Geocoder, Locate, Fullscreen) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol@0.79.0/dist/L.Control.Locate.min.js" charset="utf-8"></script>
+    <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
+    
+    <!-- Leaflet Routing Machine for drawing paths -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+    <!-- QR Code Generator Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="auth-locked">
+    <section id="login-screen" class="login-screen">
+        <div class="login-panel glass-panel">
+            <div class="login-brand">
+                <div class="login-brand-mark">
+                    <i class="fa-solid fa-truck-fast"></i>
+                </div>
+                <div>
+                    <span>Transport Management System</span>
+                    <h1>TMS Pro</h1>
+                </div>
+            </div>
+
+            <form id="form-login" class="login-form" autocomplete="on">
+                <div class="input-group">
+                    <label for="login-username">รหัสพนักงาน</label>
+                    <div class="login-input-wrap">
+                        <i class="fa-solid fa-user"></i>
+                        <input type="text" id="login-username" name="username" placeholder="ระบุรหัสพนักงาน" autocomplete="username" required>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="login-password">รหัสผ่าน</label>
+                    <div class="login-input-wrap">
+                        <i class="fa-solid fa-lock"></i>
+                        <input type="password" id="login-password" name="password" placeholder="ระบุรหัสพนักงานอีกครั้ง" autocomplete="current-password" required>
+                        <button type="button" class="login-password-toggle" id="btn-toggle-login-password" title="แสดง/ซ่อนรหัสผ่าน">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="login-error" class="login-error" aria-live="polite"></div>
+                <button type="submit" class="btn btn-primary btn-lg login-submit">
+                    <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <section id="company-gate" class="company-gate">
+        <div class="company-gate-panel glass-panel">
+            <div class="company-gate-header">
+                <div class="login-brand-mark">
+                    <i class="fa-solid fa-building"></i>
+                </div>
+                <div>
+                    <span id="company-gate-user" class="text-secondary">ผู้ใช้งาน</span>
+                    <h1>เลือกบริษัท</h1>
+                </div>
+            </div>
+            <div id="company-gate-list" class="company-gate-list"></div>
+            <div class="company-gate-footer">
+                <button type="button" class="btn btn-secondary" id="btn-company-gate-logout">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> ออกจากระบบ
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fa-solid fa-truck-fast"></i>
+                    <h2>TMS Pro</h2>
+                </div>
+                <div class="sidebar-company-badge" id="sidebar-company-badge" hidden>
+                    <img id="sidebar-company-logo" src="assets/logos/aescon-logo.png" alt="Company logo">
+                    <span id="sidebar-company-name">AESCON CO.,LTD.</span>
+                    <button type="button" class="sidebar-company-switch" id="btn-open-company-settings" title="เลือกบริษัท">
+                        <i class="fa-solid fa-building"></i>
+                    </button>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <!-- 1. Dashboard (Control Tower) -->
+                <div class="nav-module">
+                    <div class="nav-module-title"><span><i class="fa-solid fa-tower-broadcast module-icon"></i> 1. ศูนย์ควบคุม (Control Tower)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
+                    <div class="nav-sub-menu">
+                        <button class="nav-btn active" data-target="dashboard">
+                            <i class="fa-solid fa-chart-line"></i>
+                            แดชบอร์ดภาพรวม (Dashboard)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Travel Plan -->
+                <div class="nav-module">
+                    <div class="nav-module-title"><span><i class="fa-solid fa-route module-icon"></i> 2. แผนการเดินทาง (Travel Plan)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
+                    <div class="nav-sub-menu">
+                        <button class="nav-btn" data-target="travel-plan">
+                            <i class="fa-solid fa-map-location-dot"></i>
+                            วางแผนการเดินทาง (Shipment Planning)
+                        </button>
+                        <button class="nav-btn" data-target="manager-approval">
+                            <i class="fa-solid fa-user-tie"></i>
+                            อนุมัติโดยหัวหน้า (Mgr Approval)
+                        </button>
+                        <button class="nav-btn" data-target="hr-approval">
+                            <i class="fa-solid fa-users-gear"></i>
+                            ตรวจสอบโดย HR (HR Check)
+                        </button>
+                        <button class="nav-btn" data-target="md-approval">
+                            <i class="fa-solid fa-user-tie"></i>
+                            อนุมัติโดย MD (MD Approval)
+                        </button>
+                        <button class="nav-btn" data-target="accounting-approval">
+                            <i class="fa-solid fa-file-invoice-dollar"></i>
+                            พนักงานบัญชีทำจ่าย (Accounting)
+                        </button>
+                        <button class="nav-btn" data-target="travel-status">
+                            <i class="fa-solid fa-clipboard-check"></i>
+                            ตรวจสอบสถานะเอกสาร (Document Status)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3. Transport Planning -->
+                <div class="nav-module">
+                    <div class="nav-module-title"><span><i class="fa-solid fa-truck-ramp-box module-icon"></i> 3. การจองรถ (Car Booking)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
+                    <div class="nav-sub-menu">
+                        <button class="nav-btn" data-target="car-booking">
+                            <i class="fa-solid fa-file-circle-plus"></i>
+                            สร้างเอกสาร
+                        </button>
+                        <button class="nav-btn" data-target="car-arrangement">
+                            <i class="fa-solid fa-truck-ramp-box"></i>
+                            จัดการคิวรถ
+                        </button>
+                        <button class="nav-btn" data-target="packing">
+                            <i class="fa-solid fa-box-open"></i>
+                            จัดของ
+                        </button>
+                        <button class="nav-btn" data-target="car-document-approval">
+                            <i class="fa-solid fa-file-signature"></i>
+                            อนุมัติเอกสาร
+                        </button>
+                        <button class="nav-btn" data-target="car-document-status">
+                            <i class="fa-solid fa-chart-simple"></i>
+                            สถานะเอกสาร
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. System Settings -->
+                <div class="nav-module">
+                    <div class="nav-module-title"><span><i class="fa-solid fa-gear module-icon"></i> 4. ตั้งค่าระบบ (System Settings)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
+                    <div class="nav-sub-menu">
+                        <button class="nav-btn" data-target="admin-settings">
+                            <i class="fa-solid fa-truck"></i>
+                            ข้อมูลรถ (Vehicle Registry)
+                        </button>
+                        <button class="nav-btn" data-target="maintenance">
+                            <i class="fa-solid fa-wrench"></i>
+                            ตารางซ่อมบำรุง (Maintenance)
+                        </button>
+                        <button class="nav-btn" data-target="fuel">
+                            <i class="fa-solid fa-gas-pump"></i>
+                            จัดการค่าน้ำมัน (Fuel Management)
+                        </button>
+                        <button class="nav-btn" data-target="company-settings">
+                            <i class="fa-solid fa-building"></i>
+                            ข้อมูลบริษัท (Company)
+                        </button>
+                        <button class="nav-btn" data-target="permission-management">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            จัดการสิทธิ์ (Permissions)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5. AI Assistant -->
+                <div class="nav-module">
+                    <div class="nav-module-title"><span><i class="fa-solid fa-wand-magic-sparkles module-icon"></i> 5. ผู้ช่วย AI (AI Assistant)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
+                    <div class="nav-sub-menu">
+                        <button class="nav-btn" data-target="ai-assistant">
+                            <i class="fa-solid fa-robot"></i>
+                            ผู้ช่วย AI (GPT)
+                        </button>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="top-header glass-panel">
+                <h1 id="page-title"><i class="fa-solid fa-chart-line"></i> แดชบอร์ด (Dashboard)</h1>
+                <div class="user-profile">
+                    <span class="current-user-name" id="current-user-name">ผู้ใช้งาน</span>
+                    <div class="avatar">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <button type="button" class="btn-icon text-muted" id="btn-logout" title="ออกจากระบบ">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- Flow: Dashboard -->
+                <section id="dashboard" class="view-section active glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-chart-line text-accent"></i> ภาพรวมการขนส่ง (Transportation Overview)</h3>
+                    
+                    <!-- Top Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #3b82f6; background: rgba(59, 130, 246, 0.1);"><i class="fa-solid fa-truck-fast"></i></div>
+                            <div class="stat-info">
+                                <h4>กำลังเดินทาง</h4>
+                                <div class="stat-value" id="stat-traveling">3 คัน</div>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #10b981; background: rgba(16, 185, 129, 0.1);"><i class="fa-solid fa-check-circle"></i></div>
+                            <div class="stat-info">
+                                <h4>ถึงเป้าหมายแล้ววันนี้</h4>
+                                <div class="stat-value" id="stat-arrived">12 ขบวน</div>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #f59e0b; background: rgba(245, 158, 11, 0.1);"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-info">
+                                <h4>เตรียมเดินทาง</h4>
+                                <div class="stat-value" id="stat-preparing">5 คัน</div>
+                            </div>
+                        </div>
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #8b5cf6; background: rgba(139, 92, 246, 0.1);"><i class="fa-solid fa-bed"></i></div>
+                            <div class="stat-info">
+                                <h4>กำลังจอดพัก / หลับ</h4>
+                                <div class="stat-value" id="stat-resting">1 คัน</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-content-layout mt-4">
+                        <!-- Left Sidebar: Fuel Prices -->
+                        <div class="glass-panel-inner" style="padding: 1.5rem; display: flex; flex-direction: column; align-items: center;">
+                            <h4 style="margin-bottom: 1.5rem; width: 100%; text-align: left;"><i class="fa-solid fa-gas-pump text-accent"></i> ราคาน้ำมัน (ปตท.)</h4>
+                            <div style="width: 320px; overflow: hidden; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                                <iframe width="100%" height="875" src="https://gasprice.kapook.com/gasprice.php" frameborder="0" scrolling="no"></iframe>
+                            </div>
+                        </div>
+
+                        <!-- Right Main Content -->
+                        <div style="display: flex; flex-direction: column; gap: 1.5rem; min-width: 0;">
+                            <!-- Control Tower KPIs & Alerts -->
+                            <div class="dashboard-middle-grid" style="margin-bottom: 0;">
+                                <div class="glass-panel-inner">
+                                    <h4><i class="fa-solid fa-gauge-high text-accent"></i> KPI Snapshot (Performance)</h4>
+                                    <div class="stats-grid mt-3" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                                        <div class="stat-card" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                                            <h5 class="text-secondary" style="font-size: 0.85rem; font-weight: 500;">On-Time Delivery</h5>
+                                            <h2 class="text-primary-gradient mt-1" style="font-size: 1.8rem; font-weight: 700;">94.5%</h2>
+                                            <div style="font-size: 0.75rem; color: #10b981; margin-top: 5px;"><i class="fa-solid fa-arrow-trend-up"></i> +2.4% vs last week</div>
+                                        </div>
+                                        <div class="stat-card" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                                            <h5 class="text-secondary" style="font-size: 0.85rem; font-weight: 500;">Fleet Utilization</h5>
+                                            <h2 class="text-primary-gradient mt-1" style="font-size: 1.8rem; font-weight: 700;">82%</h2>
+                                            <div style="font-size: 0.75rem; color: #10b981; margin-top: 5px;"><i class="fa-solid fa-arrow-trend-up"></i> Optimal</div>
+                                        </div>
+                                        <div class="stat-card" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                                            <h5 class="text-secondary" style="font-size: 0.85rem; font-weight: 500;">Avg Cost / Trip</h5>
+                                            <h2 class="text-primary-gradient mt-1" style="font-size: 1.8rem; font-weight: 700;">฿1,250</h2>
+                                            <div style="font-size: 0.75rem; color: #ef4444; margin-top: 5px;"><i class="fa-solid fa-arrow-trend-down"></i> -1.5% vs budget</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="glass-panel-inner" style="border-left: 3px solid #ef4444;">
+                                    <div class="flex-between">
+                                        <h4><i class="fa-solid fa-bell text-danger"></i> Alerts & Exceptions</h4>
+                                        <span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem;">2 Active</span>
+                                    </div>
+                                    <ul class="mt-3" style="list-style: none; padding: 0;">
+                                        <li style="padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 6px; margin-bottom: 8px; font-size: 0.85rem; display: flex; align-items: flex-start; gap: 10px;">
+                                            <i class="fa-solid fa-triangle-exclamation text-danger mt-1"></i>
+                                            <div><strong>ทะเบียน กท 1234</strong><br><span class="text-secondary">Expected delay: 45 min due to heavy traffic (Rama II Rd)</span></div>
+                                        </li>
+                                        <li style="padding: 10px; background: rgba(245, 158, 11, 0.1); border-radius: 6px; margin-bottom: 0; font-size: 0.85rem; display: flex; align-items: flex-start; gap: 10px;">
+                                            <i class="fa-solid fa-wrench mt-1" style="color: #f59e0b;"></i>
+                                            <div><strong>ทะเบียน ชร 9999</strong><br><span class="text-secondary">Maintenance overdue by 3 days. Action required.</span></div>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Middle: Map and Charts -->
+                            <div class="dashboard-middle-grid" style="margin-bottom: 0;">
+                                <!-- Live Map Tracker -->
+                                <div class="map-tracker-container glass-panel-inner">
+                                    <h4><i class="fa-solid fa-location-crosshairs text-accent"></i> แผนที่จำลองพิกัดรถปัจจุบัน (Live Tracker)</h4>
+                                    <div id="dashboard-live-map" style="height: 350px; border-radius: 8px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.1); z-index: 1;"></div>
+                                    <small class="text-secondary mt-2" style="display:block;"><i class="fa-solid fa-map-pin"></i> พิกัดอัปเดตจาก GPS จริง (จำลองการเคลื่อนที่แบบเรียลไทม์)</small>
+                                </div>
+
+                                <!-- Pie Chart -->
+                                <div class="charts-container glass-panel-inner">
+                                     <h4><i class="fa-solid fa-chart-pie text-accent"></i> สัดส่วนสถานะงานวันนี้</h4>
+                                     <div class="chart-wrapper">
+                                         <canvas id="statusPieChart"></canvas>
+                                     </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Bottom: Bar Chart & Table -->
+                            <div class="dashboard-bottom-grid">
+                                <div class="glass-panel-inner chart-panel">
+                                    <h4><i class="fa-solid fa-chart-column text-accent"></i> สถิติปริมาณงานขนส่ง (แนวตั้ง)</h4>
+                                    <div class="chart-wrapper-bar">
+                                         <canvas id="usageBarChart"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <div class="glass-panel-inner table-panel">
+                                    <h4><i class="fa-solid fa-list-check text-accent"></i> สถานะรถปัจจุบัน (Active Vehicles)</h4>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>ทะเบียนรถ</th>
+                                                    <th>คนขับ</th>
+                                                    <th>ผู้จอง</th>
+                                                    <th>เส้นทาง</th>
+                                                    <th>สถานะ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="dashboard-vehicles-table">
+                                                <!-- Populated via script -->
+                                            </tbody>
+                                        </table>
+                                        <small class="text-secondary mt-2" style="display:block;"><i class="fa-solid fa-hand-pointer"></i> * ดับเบิ้ลคลิกแถวเพื่อดูหน้าต่างป๊อปอัพรายละเอียด (Modal)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Flow 1: Travel Plan -->
+                <section id="travel-plan" class="view-section glass-panel">
+                    <form class="dynamic-form" id="form-travel-plan" onsubmit="event.preventDefault();">
+                        <!-- 1. Traveler Details -->
+                        <h3 class="section-subtitle">ข้อมูลผู้เดินทาง</h3>
+                        <div id="travelers-list">
+                            <!-- Traveler Row 1 -->
+                            <div class="traveler-card glass-panel-inner mb-3">
+                                <div class="card-header flex-between">
+                                    <h4><i class="fa-solid fa-user"></i> ผู้เดินทางคนที่ 1</h4>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>รหัสพนักงาน</label>
+                                        <input type="text" placeholder="ระบุรหัสพนักงาน" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ชื่อ - นามสกุล</label>
+                                        <input type="text" placeholder="ระบุชื่อและนามสกุล" required>
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>แผนก</label>
+                                        <input type="text" placeholder="ระบุแผนก" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ตำแหน่ง</label>
+                                        <input type="text" placeholder="ระบุตำแหน่ง" required>
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>เบอร์โทรศัพท์</label>
+                                        <input type="tel" placeholder="08X-XXX-XXXX" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>รายละเอียดการเดินทาง (Comment)</label>
+                                        <input type="text" placeholder="ระบุรายละเอียดเพิ่มเติม">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-traveler">
+                            <i class="fa-solid fa-user-plus"></i> เพิ่มผู้เดินทาง
+                        </button>
+
+                        <div class="glass-panel-inner mt-4">
+                            <h4><i class="fa-solid fa-clipboard-list text-accent"></i> รายละเอียดงาน</h4>
+                            <div class="form-row mt-3">
+                                <div class="input-group">
+                                    <label>รายละเอียดงาน</label>
+                                    <textarea id="travel-job-description" rows="3" placeholder="ระบุรายละเอียดงานที่จะนำไปแสดงใน Working Plan ช่อง Job Description"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Site / Route Details -->
+                        <h3 class="section-subtitle mt-5">เส้นทาง (ต้นทาง - ปลายทาง)</h3>
+                        
+                        <!-- Origin -->
+                        <div class="site-card glass-panel-inner mb-3 origin-site">
+                            <div class="card-header">
+                                <h4><i class="fa-solid fa-location-dot text-accent"></i> ต้นทาง</h4>
+                            </div>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>รหัสโครงการ</label>
+                                    <input type="text" class="project-code-input" placeholder="ระบุรหัส" autocomplete="off" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>ชื่อโครงการ / สถานที่</label>
+                                    <input type="text" class="project-name-input" placeholder="ระบุชื่อสถานที่" autocomplete="off" required>
+                                </div>
+                            </div>
+                            <div class="form-row mt-3">
+                                <div class="input-group">
+                                    <label><i class="fa-brands fa-google"></i> Google Map Link หรือ พิกัด</label>
+                                    <div class="input-with-action">
+                                        <input type="text" class="map-link-input" placeholder="คลิกปุ่มเพื่อเลือกสถานที่" readonly required>
+                                        <button type="button" class="btn-icon text-accent btn-open-map" title="เลือกจากแผนที่"><i class="fa-solid fa-map-location-dot"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Destinations Container -->
+                        <div id="destinations-list">
+                            <!-- Dest 1 -->
+                            <div class="site-card glass-panel-inner mb-3 dest-site">
+                                <div class="card-header flex-between">
+                                    <h4><i class="fa-solid fa-flag-checkered text-accent"></i> ปลายทางที่ 1</h4>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>รหัสโครงการ</label>
+                                        <input type="text" class="project-code-input" placeholder="ระบุรหัส" autocomplete="off" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ชื่อโครงการ / สถานที่</label>
+                                        <input type="text" class="project-name-input" placeholder="ระบุชื่อสถานที่" autocomplete="off" required>
+                                    </div>
+                                </div>
+                                <div class="form-row mt-3">
+                                    <div class="input-group">
+                                        <label><i class="fa-brands fa-google"></i> Google Map Link หรือ พิกัด</label>
+                                        <div class="input-with-action">
+                                            <input type="text" class="map-link-input" placeholder="คลิกปุ่มเพื่อเลือกสถานที่" readonly required>
+                                            <button type="button" class="btn-icon text-accent btn-open-map" title="เลือกจากแผนที่"><i class="fa-solid fa-map-location-dot"></i></button>
+                                            <button type="button" class="btn-icon text-accent btn-check-route" title="เช็คระยะทาง"><i class="fa-solid fa-route"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>ระยะทางจากจุดก่อนหน้า (กม.)</label>
+                                        <input type="number" class="distance-input" placeholder="0.00" min="0" step="0.01" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-add-destination">
+                            <i class="fa-solid fa-plus"></i> เพิ่มจุดหมายปลายทาง
+                        </button>
+                        
+                        <div class="summary-box mt-3 mb-4">
+                            <strong>รวมระยะทางทั้งหมด: </strong>
+                            <span id="total-distance" class="text-accent text-lg">0.00</span> กม.
+                        </div>
+
+                        <!-- Date / Time -->
+                        <div class="form-row split-row mt-4">
+                            <div class="input-group">
+                                <label><i class="fa-regular fa-calendar"></i> วันที่เดินทาง</label>
+                                <input type="date" required>
+                            </div>
+                            <div class="input-group">
+                                <label><i class="fa-regular fa-clock"></i> เวลาที่เดินทาง</label>
+                                <input type="time" required>
+                            </div>
+                        </div>
+
+                        <div id="travel-live-tracking-panel" class="travel-live-tracking-panel" hidden>
+                        <!-- 3. Professional Live Tracking Control Center -->
+                        <div class="flex-between">
+                            <h3 class="section-subtitle mt-5">ศูนย์ควบคุมการติดตาม (Live Tracking Control Center)</h3>
+                            <div style="position: relative; display: inline-block;">
+                                <button type="button" class="btn btn-secondary btn-sm mt-5" id="btn-open-mobile-sync">
+                                    <i class="fa-solid fa-mobile-screen-button"></i> เชื่อมต่อมือถือ (Sync Mobile)
+                                </button>
+                                
+                                <!-- QR Popover Container -->
+                                <div id="qr-popover" class="qr-popover-box fade-in">
+                                    <div class="popover-arrow"></div>
+                                    <div class="popover-content">
+                                        <div class="flex-between mb-2">
+                                            <span class="text-xs font-semibold text-accent">MOBILE SYNC GATEWAY</span>
+                                            <button type="button" class="btn-close-popover" id="btn-close-popover">×</button>
+                                        </div>
+                                        <div id="sync-qr-code" class="qr-frame"></div>
+                                        <div class="mt-2 text-center">
+                                            <button type="button" class="btn btn-primary btn-xs" id="btn-download-qr">
+                                                <i class="fa-solid fa-download"></i> บันทึกรูป
+                                            </button>
+                                        </div>
+                                        <div class="mt-2 text-xs text-secondary opacity-70">
+                                            URL: <span id="sync-url-text" class="truncate-url"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="gps-pro-dashboard mb-4">
+                            <!-- GPS Status & Gauges Row -->
+                            <div class="form-row split-row mt-3">
+                                <div class="gps-card traveler-card glass-panel-inner w-full">
+                                    <div class="flex-between mb-3">
+                                        <div class="flex-center" style="gap: 10px;">
+                                            <div class="gps-avatar traveler-avatar">พ</div>
+                                            <div>
+                                                <h4 style="margin: 0; font-size: 0.9rem;">GPS ผู้เดินทาง (Traveler)</h4>
+                                                <div class="status-badge" id="traveler-gps-status">
+                                                    <span class="pulse-dot"></span> <span class="badge-text">รอการเชื่อมต่อ...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-icon text-accent" id="btn-toggle-traveler-gps" title="เชื่อมต่อ GPS พนักงาน"><i class="fa-solid fa-link"></i></button>
+                                    </div>
+                                    <div class="gauge-grid">
+                                        <div class="gauge-item">
+                                            <span class="gauge-label">สัญญาณ</span>
+                                            <div class="signal-bars">
+                                                <div class="bar bar-1"></div>
+                                                <div class="bar bar-2"></div>
+                                                <div class="bar bar-3"></div>
+                                                <div class="bar bar-4"></div>
+                                            </div>
+                                        </div>
+                                        <div class="gauge-item">
+                                            <span class="gauge-label">พิกัด</span>
+                                            <span class="gauge-value" id="traveler-coords">0.000, 0.000</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="gps-card driver-card glass-panel-inner w-full">
+                                    <div class="flex-between mb-3">
+                                        <div class="flex-center" style="gap: 10px;">
+                                            <div class="gps-avatar driver-avatar">ค</div>
+                                            <div>
+                                                <h4 style="margin: 0; font-size: 0.9rem;">GPS คนขับ (Driver)</h4>
+                                                <div class="status-badge" id="driver-gps-status">
+                                                    <span class="pulse-dot"></span> <span class="badge-text">รอการเชื่อมต่อ...</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn-icon text-accent" id="btn-toggle-driver-gps" title="เชื่อมต่อ GPS คนขับ"><i class="fa-solid fa-link"></i></button>
+                                    </div>
+                                    <div class="gauge-grid">
+                                        <div class="gauge-item">
+                                            <span class="gauge-label">สัญญาณ</span>
+                                            <div class="signal-bars offline" id="driver-signal">
+                                                <div class="bar bar-1"></div>
+                                                <div class="bar bar-2"></div>
+                                                <div class="bar bar-3"></div>
+                                                <div class="bar bar-4"></div>
+                                            </div>
+                                        </div>
+                                        <div class="gauge-item">
+                                            <span class="gauge-label">ความเร็ว</span>
+                                            <span class="gauge-value"><span id="driver-speed">0</span> กม./ชม.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Map & Log Row -->
+                            <div class="form-row mt-3" style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
+                                <!-- Mini Map Container -->
+                                <div class="live-map-container glass-panel-inner" style="height: 300px; padding: 0; position: relative; overflow: hidden;">
+                                    <div id="gps-live-map" style="width: 100%; height: 100%;"></div>
+                                    <div class="map-overlay">
+                                        <span class="badge badge-live"><i class="fa-solid fa-circle"></i> LIVE</span>
+                                    </div>
+                                </div>
+
+                                <!-- Professional Log Terminal -->
+                                <div class="gps-terminal glass-panel-inner">
+                                    <div class="terminal-header">
+                                        <span><i class="fa-solid fa-terminal"></i> SYSTEM LOG</span>
+                                    </div>
+                                    <div class="terminal-body" id="gps-log-body">
+                                        <div class="term-line init">System ready. Waiting for GPS link...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Control Buttons -->
+                            <div class="form-row mt-3">
+                                <div class="gps-controls-pro glass-panel-inner">
+                                    <button type="button" class="btn btn-primary" id="btn-start-journey" disabled>
+                                        <i class="fa-solid fa-play"></i> เริ่มการเดินทาง (Start Dispatch)
+                                    </button>
+                                    <button type="button" class="btn btn-danger" id="btn-end-journey" disabled>
+                                        <i class="fa-solid fa-stop"></i> สิ้นสุดการเดินทาง (End Trip)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+
+
+
+                        <!-- 4. Expenses -->
+                        <h3 class="section-subtitle mt-5">ค่าใช้จ่ายในการเดินทาง</h3>
+                        
+                        <!-- Fuel Expense -->
+                        <div class="expense-section mb-4">
+                            <h4><i class="fa-solid fa-gas-pump"></i> ค่าน้ำมันรถยนต์</h4>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>ยี่ห้อ / ชนิดน้ำมัน</label>
+                                    <select id="fuel-type">
+                                        <option value="95">เบนซิน 95 / แก๊สโซฮอล์ 95</option>
+                                        <option value="91">แก๊สโซฮอล์ 91</option>
+                                        <option value="e20">E20</option>
+                                        <option value="diesel">ดีเซล</option>
+                                        <option value="ev">ชาร์จไฟฟ้า (EV)</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label>ระยะทางจากแผนที่ (กม.)</label>
+                                    <input type="number" id="fuel-qty" placeholder="คำนวณจากระยะทางรวม" min="0" step="0.01" class="calc-input locked-calculated-field" readonly aria-readonly="true" tabindex="-1">
+                                </div>
+                                <div class="input-group">
+                                    <label>ค่าน้ำมัน (บาท/กิโลเมตร)</label>
+                                    <input type="number" id="fuel-price" placeholder="คำนวณจากช่วงราคาน้ำมัน ปตท." min="0" step="0.01" class="calc-input">
+                                    <small id="fuel-price-status" class="field-hint text-secondary">กำลังดึงราคาจากตาราง ปตท. เพื่อคำนวณบาท/กม....</small>
+                                </div>
+                            </div>
+                            <div class="total-row mt-2 text-right">
+                                <span>รวมค่าน้ำมัน: </span>
+                                <span id="fuel-total" class="font-bold text-accent">0.00</span> บาท
+                            </div>
+                        </div>
+
+                        <!-- Accommodation Expense -->
+                        <div class="expense-section mb-4">
+                            <h4><i class="fa-solid fa-bed"></i> ค่าที่พัก</h4>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>รูปแบบ</label>
+                                    <select id="acc-type">
+                                        <option value="daily">รายวัน</option>
+                                        <option value="monthly">รายเดือน</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label>จำนวน (วัน/เดือน)</label>
+                                    <input type="number" id="acc-qty" placeholder="0" min="0" step="1" class="calc-input">
+                                </div>
+                                <div class="input-group travel-create-room-price">
+                                    <label>ราคาต่อหน่วย (บาท)</label>
+                                    <input type="number" id="acc-price" placeholder="0.00" min="0" step="0.01" class="calc-input">
+                                </div>
+                            </div>
+                            <div class="total-row mt-2 text-right">
+                                <span>รวมค่าที่พัก: </span>
+                                <span id="acc-total" class="font-bold text-accent">0.00</span> บาท
+                            </div>
+                        </div>
+
+                        <!-- Grand Total -->
+                        <div class="grand-total-box glass-panel-inner mt-4 p-4 text-center">
+                            <h3>ยอดรวมค่าใช้จ่ายโดยประมาณ</h3>
+                            <h2 id="grand-total" class="text-primary-gradient mt-2 font-bold" style="font-size: 2rem;">0.00 บาท</h2>
+                        </div>
+
+                        <div class="travel-attachment-panel glass-panel-inner mt-4">
+                            <div class="travel-attachment-header">
+                                <div>
+                                    <h4><i class="fa-solid fa-paperclip text-accent"></i> ไฟล์แนบเอกสาร</h4>
+                                    <p class="text-secondary text-sm">แนบเอกสารประกอบแผนการเดินทางได้ตั้งแต่ตอนสร้างคำขอ</p>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-travel-plan-attachment">
+                                    <i class="fa-solid fa-paperclip"></i> แนบไฟล์
+                                </button>
+                                <input type="file" id="travel-plan-attachment-input" multiple hidden>
+                            </div>
+                            <div class="travel-attachment-list" id="travel-plan-attachment-list">
+                                <span class="text-secondary">ยังไม่มีไฟล์แนบ</span>
+                            </div>
+                        </div>
+
+                        <div class="form-actions travel-plan-actions mt-5">
+                            <button type="submit" class="btn btn-primary btn-lg" id="btn-submit-travel-plan">
+                                <i class="fa-solid fa-paper-plane"></i> ส่งขออนุมัติแผนการเดินทาง (Submit for Approval)
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-lg" id="btn-print-travel-plan">
+                                <i class="fa-solid fa-print"></i> พิมพ์แผนการเดินทาง
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Approval Status Section (Hidden initially) -->
+                    <div id="approval-status-section" class="mt-5 glass-panel-inner" style="display: none;">
+                        <h3 class="section-subtitle">สถานะการอนุมัติ (Approval Status)</h3>
+                        
+                        <div class="stepper-container mt-4">
+                            <!-- Step 1: Create -->
+                            <div class="step completed" id="step-1">
+                                <div class="step-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+                                <div class="step-text">สร้างแผน<br><small class="status-date">รอส่ง...</small></div>
+                            </div>
+                            <div class="step-line"></div>
+                            
+                            <!-- Step 2: Manager -->
+                            <div class="step pending" id="step-2">
+                                <div class="step-icon"><i class="fa-solid fa-user-tie"></i></div>
+                                <div class="step-text">หัวหน้ารีวิว<br><small class="status-date">-</small></div>
+                            </div>
+                            <div class="step-line"></div>
+                            
+                            <!-- Step 3: HR -->
+                            <div class="step pending" id="step-3">
+                                <div class="step-icon"><i class="fa-solid fa-users-gear"></i></div>
+                                <div class="step-text">HR ตรวจสอบ<br><small class="status-date">-</small></div>
+                            </div>
+                            <div class="step-line"></div>
+                            
+                            <!-- Step 4: MD -->
+                            <div class="step pending" id="step-4">
+                                <div class="step-icon"><i class="fa-solid fa-user-tie"></i></div>
+                                <div class="step-text">MD อนุมัติ<br><small class="status-date">-</small></div>
+                            </div>
+                            <div class="step-line"></div>
+                            
+                            <!-- Step 5: Accounting -->
+                            <div class="step pending" id="step-5">
+                                <div class="step-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                                <div class="step-text">บัญชีทำจ่าย<br><small class="status-date">-</small></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="travel-status" class="view-section glass-panel">
+                    <div class="flex-between mb-4">
+                        <div>
+                            <h3 class="section-subtitle"><i class="fa-solid fa-clipboard-check"></i> ตรวจสอบสถานะเอกสารเดินทาง</h3>
+                            <p class="text-secondary text-sm mt-2">ค้นหาเลขเอกสารหรือเลือกจากรายการล่าสุด เพื่อดูว่าอนุมัติถึงขั้นตอนไหนแล้ว</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-travel-status">
+                            <i class="fa-solid fa-rotate-right"></i> รีเฟรช
+                        </button>
+                    </div>
+
+                    <div class="travel-status-search glass-panel-inner mb-4">
+                        <div class="input-group">
+                            <label>เลขเอกสาร / ผู้เดินทาง / ต้นทาง</label>
+                            <input type="text" id="travel-status-search" placeholder="เช่น TRV-1001, สมชาย, หรือชื่อสถานที่">
+                        </div>
+                        <button type="button" class="btn btn-primary" id="btn-travel-status-search">
+                            <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
+                        </button>
+                    </div>
+
+                    <div id="travel-status-detail" class="travel-status-detail glass-panel-inner mb-4">
+                        <div class="travel-status-empty">
+                            <i class="fa-solid fa-file-circle-question"></i>
+                            <span>เลือกเอกสารจากตารางด้านล่าง หรือค้นหาเลขเอกสารเพื่อดูสถานะ</span>
+                        </div>
+                    </div>
+
+                    <div id="travel-status-live-tracking-slot" class="travel-status-live-tracking-slot mb-4" hidden></div>
+
+                    <div class="table-container">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>เลขเอกสาร</th>
+                                    <th>ผู้เดินทาง</th>
+                                    <th>วันที่เดินทาง</th>
+                                    <th>เส้นทาง</th>
+                                    <th>ยอดรวม</th>
+                                    <th>สถานะ</th>
+                                    <th>ดู</th>
+                                </tr>
+                            </thead>
+                            <tbody id="travel-status-list-body">
+                                <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">กำลังโหลดรายการเอกสาร...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Flow: Manager Approval -->
+                <section id="manager-approval" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-user-tie"></i> รายการรออนุมัติโดยหัวหน้า</h3>
+                    <div class="table-container mt-4">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัสคำขอ</th>
+                                    <th>ผู้เดินทาง</th>
+                                    <th>วันที่เดินทาง</th>
+                                    <th>สถานะ</th>
+                                    <th>พรีวิว</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manager-list-body">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรออนุมัติ</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Flow: HR Approval -->
+                <section id="hr-approval" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-users-gear"></i> รายการรอตรวจสอบโดย HR</h3>
+                    <div class="table-container mt-4">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัสคำขอ</th>
+                                    <th>ผู้เดินทาง</th>
+                                    <th>วันที่เดินทาง</th>
+                                    <th>สถานะ</th>
+                                    <th>พรีวิว</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hr-list-body">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรออนุมัติ</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Flow: MD Approval -->
+                <section id="md-approval" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-user-tie"></i> รายการรออนุมัติโดย MD</h3>
+                    <div class="table-container mt-4">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัสคำขอ</th>
+                                    <th>ผู้เดินทาง</th>
+                                    <th>วันที่เดินทาง</th>
+                                    <th>สถานะ</th>
+                                    <th>พรีวิว</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="md-list-body">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรออนุมัติ</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Flow: Accounting Approval -->
+                <section id="accounting-approval" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-file-invoice-dollar"></i> รายการรอพนักงานบัญชีทำจ่าย</h3>
+                    <div class="table-container mt-4">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>รหัสคำขอ</th>
+                                    <th>ผู้เดินทาง</th>
+                                    <th>วันที่เดินทาง</th>
+                                    <th>สถานะ</th>
+                                    <th>พรีวิว</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounting-list-body">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอทำจ่าย</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Flow 3.1: Create Car Booking Document -->
+                <section id="car-booking" class="view-section glass-panel">
+                    <div class="form-row mb-4">
+                        <div class="input-group w-full">
+                            <label><i class="fa-solid fa-list-check"></i> เลือกประเภทเอกสาร</label>
+                            <select id="booking-type-select" class="form-select text-lg p-3" style="width: 100%; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5); color: white; border-radius: 8px;">
+                                <option value="f175">F175</option>
+                                <option value="f60">F60</option>
+                                <option value="general">จองรถใช้งานทั่วไป</option>
+                            </select>
+                            <small class="field-hint text-secondary">F175/F60 ใช้ฟอร์มเอกสารส่งของ ส่วนจองรถใช้งานทั่วไปใช้ฟอร์มคำขอรถทั่วไป</small>
+                        </div>
+                    </div>
+
+                    <form class="dynamic-form" id="form-car-booking" onsubmit="event.preventDefault();">
+                        
+                        <!-- Type 1: Admin / Errands -->
+                        <div id="booking-admin-section">
+                            <h3 class="section-subtitle">รายละเอียดของที่จะส่ง (งานธุระการ)</h3>
+                            <div class="form-row">
+                                <div class="input-group">
+                                    <label>ประเภทสิ่งของ</label>
+                                    <input type="text" placeholder="เช่น เอกสาร, พัสดุ, อุปกรณ์" class="admin-req" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group">
+                                    <label>รายละเอียดและข้อควรระวัง</label>
+                                    <textarea rows="3" placeholder="ระบุรายละเอียดของสิ่งของ..."></textarea>
+                                </div>
+                            </div>
+
+                            <h3 class="section-subtitle mt-4">รายละเอียดคนขับ</h3>
+                            <div class="form-row split-row">
+                                <div class="input-group">
+                                    <label>ชื่อคนขับ</label>
+                                    <input type="text" placeholder="ระบุชื่อคนขับรถ" class="admin-req" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>เบอร์ติดต่อ</label>
+                                    <input type="tel" placeholder="08X-XXX-XXXX" class="admin-req" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Type 2: Delivery -->
+                        <div id="booking-delivery-section" style="display: none;">
+                            <h3 class="section-subtitle">รายละเอียดการจัดส่งสินค้า</h3>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>2.1 เลขที่เอกสารใบส่งของ</label>
+                                    <input type="text" id="delivery-note-no" placeholder="ระบบสร้างเลขใบส่งของให้อัตโนมัติ" class="delivery-req">
+                                </div>
+                                <div class="input-group">
+                                    <label>2.2 ไฟล์แนบเอกสาร</label>
+                                    <input type="file" style="padding: 10px; border: 1px dashed rgba(255,255,255,0.4); border-radius: 8px; background: rgba(0,0,0,0.2); color: white; width: 100%;">
+                                </div>
+                            </div>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group" style="width: 50%;">
+                                    <label>2.3 น้ำหนักรวม (กิโลกรัม)</label>
+                                    <input type="number" id="delivery-total-weight" placeholder="0.00" min="0" step="0.1" class="delivery-req" readonly>
+                                </div>
+                            </div>
+
+                            <div class="delivery-note-builder glass-panel-inner mt-4">
+                                <div class="flex-between mb-3">
+                                    <div>
+                                        <h4><i class="fa-solid fa-boxes-stacked text-accent"></i> รายการสินค้าในใบส่งของ</h4>
+                                        <p class="text-secondary text-sm">ดึงรายการสินค้าจาก PostgreSQL เพื่อสร้างใบส่งของและส่งต่อไปจัดเรียงสินค้า</p>
+                                    </div>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-products">
+                                        <i class="fa-solid fa-rotate"></i> ดึงสินค้า
+                                    </button>
+                                </div>
+                                <div class="form-row split-row delivery-product-picker">
+                                    <div class="input-group">
+                                        <label>เลือกสินค้า</label>
+                                        <select id="delivery-product-select" class="sr-only-select" aria-hidden="true" tabindex="-1">
+                                            <option value="">กำลังรอข้อมูลสินค้า...</option>
+                                        </select>
+                                        <button type="button" class="product-picker-button" id="btn-open-product-picker">
+                                            <span id="selected-delivery-product-text">เลือกสินค้าที่จะใส่ใบส่งของ</span>
+                                            <i class="fa-solid fa-magnifying-glass"></i>
+                                        </button>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>จำนวน</label>
+                                        <input type="number" id="delivery-product-qty" min="1" step="1" value="1">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>น้ำหนัก/หน่วย (กก.)</label>
+                                        <input type="text" id="delivery-product-weight" inputmode="decimal" placeholder="0.00">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>&nbsp;</label>
+                                        <button type="button" class="btn btn-primary" id="btn-add-delivery-product">
+                                            <i class="fa-solid fa-plus"></i> เพิ่มสินค้า
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="delivery-product-status" class="text-secondary text-sm mt-2"></div>
+                                <div class="product-picker-modal" id="product-picker-modal" aria-hidden="true">
+                                    <div class="product-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="product-picker-title">
+                                        <div class="product-picker-header">
+                                            <div>
+                                                <h3 id="product-picker-title"><i class="fa-solid fa-boxes-stacked text-accent"></i> เลือกสินค้าใส่ใบส่งของ</h3>
+                                                <p id="product-picker-count">ค้นหาจาก Code หรือชื่อสินค้า</p>
+                                            </div>
+                                            <button type="button" class="btn-icon" id="btn-close-product-picker" title="ปิด">
+                                                <i class="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </div>
+                                        <div class="product-picker-search">
+                                            <i class="fa-solid fa-magnifying-glass"></i>
+                                            <input type="search" id="product-picker-search-input" placeholder="ค้นหา Code หรือชื่อสินค้า">
+                                        </div>
+                                        <div class="product-picker-list" id="product-picker-list"></div>
+                                    </div>
+                                </div>
+                                <div class="table-container delivery-items-table-container mt-3">
+                                    <table class="modern-table">
+                                        <colgroup>
+                                            <col class="delivery-item-code-col">
+                                            <col class="delivery-item-name-col">
+                                            <col class="delivery-item-qty-col">
+                                            <col class="delivery-item-weight-col">
+                                            <col class="delivery-item-action-col">
+                                        </colgroup>
+                                        <thead>
+                                            <tr>
+                                                <th>รหัส</th>
+                                                <th>สินค้า</th>
+                                                <th>จำนวน</th>
+                                                <th>น้ำหนักรวม</th>
+                                                <th>จัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="delivery-note-items-body">
+                                            <tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">ยังไม่มีสินค้าในใบส่งของ</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <h3 class="section-subtitle mt-4">เส้นทางจัดส่ง</h3>
+                            <!-- Origin -->
+                            <div class="site-card glass-panel-inner mb-3 delivery-origin-site">
+                                <div class="card-header">
+                                    <h4><i class="fa-solid fa-location-dot text-accent"></i> 2.4 ต้นทาง</h4>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>โครงการ</label>
+                                        <input type="text" placeholder="ระบุโครงการ" class="delivery-req delivery-project-input" autocomplete="off">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>หมายเหตุ</label>
+                                        <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)">
+                                    </div>
+                                </div>
+                                <div class="form-row mt-3">
+                                    <div class="input-group">
+                                        <label>ชื่อสถานที่ หรือ พิกัดต้นทาง</label>
+                                        <div class="input-with-action">
+                                            <input type="text" class="map-link-input delivery-req" placeholder="คลิกเพื่อเลือกสถานที่" readonly>
+                                            <button type="button" class="btn-icon text-accent btn-open-map"><i class="fa-solid fa-map-location-dot"></i></button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Destinations -->
+                            <h4 class="mb-2 mt-4 text-accent"><i class="fa-solid fa-flag-checkered"></i> 2.5 ปลายทาง</h4>
+                            <div id="delivery-destinations-list">
+                                <div class="site-card glass-panel-inner mb-3 delivery-dest-site">
+                                    <div class="card-header flex-between mb-2">
+                                        <h4>ปลายทางที่ 1</h4>
+                                        <button type="button" class="btn-icon text-danger btn-remove-del-dest" style="display: none;"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                    <div class="form-row split-row mt-3">
+                                        <div class="input-group">
+                                            <label>โครงการ</label>
+                                            <input type="text" placeholder="ระบุโครงการ" class="delivery-req delivery-project-input" autocomplete="off">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>หมายเหตุ</label>
+                                            <input type="text" placeholder="ระบุหมายเหตุ (ถ้ามี)">
+                                        </div>
+                                    </div>
+                                    <div class="form-row mt-3">
+                                        <div class="input-group">
+                                            <label>ชื่อสถานที่ หรือ พิกัดปลายทาง</label>
+                                            <div class="input-with-action">
+                                                <input type="text" class="map-link-input delivery-req" placeholder="คลิกเพื่อเลือกสถานที่" readonly>
+                                                <button type="button" class="btn-icon text-accent btn-open-map"><i class="fa-solid fa-map-location-dot"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm mt-2" id="btn-add-delivery-dest">
+                                <i class="fa-solid fa-plus"></i> เพิ่มจุดหมายปลายทาง
+                            </button>
+                        </div>
+
+                        <div class="form-actions mt-5">
+                            <button type="submit" class="btn btn-primary w-full" style="padding: 15px; font-size: 1.1rem;"><i class="fa-solid fa-calendar-check"></i> ยืนยันการจองรถ</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Flow 3.2: Queue Management -->
+                <section id="car-arrangement" class="view-section glass-panel">
+                    <div class="glass-panel-inner mb-4">
+                        <h3 class="section-subtitle mb-2" style="border-bottom: none;"><i class="fa-solid fa-truck-ramp-box"></i> 3.2 จัดการคิวรถ</h3>
+                        <p class="text-secondary">เมนูนี้เตรียมไว้สำหรับจัดคิวรถตาม Flow ใหม่ เดี๋ยวค่อยเติมรายละเอียดการจัดคิว รถว่าง คนขับ และลำดับงานภายหลัง</p>
+                    </div>
+                    <div id="car-arrangement-list-view" style="display: none;">
+                        <div class="flex-between mb-2">
+                            <h3 class="section-subtitle mb-0" style="border-bottom: none;"><i class="fa-solid fa-truck-ramp-box"></i> รายการจองรถที่รอจัดรถ</h3>
+                            <button class="btn btn-primary btn-sm" id="btn-arrange-selected" disabled><i class="fa-solid fa-truck-fast"></i> จัดรวบยอดที่เลือก</button>
+                        </div>
+                        <div class="table-container mt-2">
+                            <table class="modern-table" id="arrangement-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;"><input type="checkbox" id="check-all-arrangements"></th>
+                                        <th>รหัสการจอง</th>
+                                        <th>ประเภท</th>
+                                        <th>รายละเอียด (ต้นทาง/ปลายทาง)</th>
+                                        <th>สถานะ</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="car-arrangement-list-body">
+                                    <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอจัดรถ</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <form class="dynamic-form" id="form-car-arrangement" onsubmit="event.preventDefault();" style="display: none;">
+                        <button type="button" class="btn btn-secondary btn-sm mb-4" id="btn-back-arrangement"><i class="fa-solid fa-arrow-left"></i> กลับหน้ารายการจัดรถ</button>
+                        <h3 class="section-subtitle">รายละเอียดรถที่จะใช้สำหรับคำขอ <span id="arrange-booking-ids" class="text-accent font-bold"></span></h3>
+                        <div class="form-row split-row mt-3">
+                            <div class="input-group">
+                                <label>ประเภทรถ</label>
+                                <select id="arrange-car-type" required>
+                                    <option value="" disabled selected>เลือกประเภทรถ</option>
+                                    <option value="sedan">รถเก๋ง / รถยนต์นั่ง</option>
+                                    <option value="pickup">รถกระบะ</option>
+                                    <option value="van">รถตู้</option>
+                                    <option value="truck">รถบรรทุก</option>
+                                    <option value="motorcycle">รถมอเตอร์ไซค์</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label>ทะเบียนรถ</label>
+                                <select id="arrange-car-plate" required>
+                                    <option value="">กำลังโหลดข้อมูลรถจากฐานข้อมูล...</option>
+                                </select>
+                                <small id="arrange-car-source" class="field-hint text-secondary">ดึงข้อมูลจากทรัพย์สินรถใน PostgreSQL แล้วเก็บสำเนาไว้ใน MySQL</small>
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Packing List -->
+                        <h3 class="section-subtitle mt-4">รายการสินค้าที่จะบรรทุก (Packing List)</h3>
+                        <div class="table-container mt-2">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>รายการ</th>
+                                        <th>จำนวน</th>
+                                        <th>น้ำหนัก (กก.)</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="packing-list-body">
+                                    <!-- Dynamic rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm mt-3" id="btn-add-packing">
+                            <i class="fa-solid fa-plus"></i> เพิ่มรายการ
+                        </button>
+
+                        <div class="form-actions mt-5">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-clipboard-check"></i> ยืนยันการจัดรถ</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Flow 3.3: Packing (จัดของ) -->
+                <section id="packing-queue" class="view-section glass-panel">
+                    <div id="packing-list-view">
+                        <h3 class="section-subtitle"><i class="fa-solid fa-box-open"></i> รายการจัดของ (Packing) เตรียมขึ้นรถ</h3>
+                        <div class="table-container mt-4">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>รหัสการจอง</th>
+                                        <th>ทะเบียนรถ / ประเภท</th>
+                                        <th>ปลายทาง</th>
+                                        <th>สถานะ</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="packing-list-main-body">
+                                    <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">ไม่มีรายการรอจัดของ</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="packing-simulator-view" style="display: none;">
+                        <button type="button" class="btn btn-secondary btn-sm mb-4" id="btn-back-packing"><i class="fa-solid fa-arrow-left"></i> กลับหน้ารายการจัดของ</button>
+                        <h3 class="section-subtitle">ระบบจำลองการจัดเรียงสินค้า (Cargo Layout Simulator) - คำขอ <span id="pack-booking-id" class="text-accent font-bold"></span></h3>
+                        
+                        <div class="simulator-container mt-4 flex-between" style="gap: 20px; align-items: stretch;">
+                            <!-- Items List Panel -->
+                            <div class="items-panel glass-panel-inner" style="flex: 1; max-width: 35%;">
+                                <h4><i class="fa-solid fa-boxes-stacked"></i> รายการสินค้า</h4>
+                                <p class="text-sm text-secondary mb-3">ลากและวางสินค้าไปยังพื้นที่รถ</p>
+                                <div id="draggable-items-container" class="draggable-items-list" style="min-height: 250px; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; background: rgba(0,0,0,0.2);">
+                                    <!-- draggable items will be injected here -->
+                                </div>
+                            </div>
+
+                            <!-- Cargo Space Panel -->
+                            <div class="cargo-panel glass-panel-inner" style="flex: 2;">
+                                <div class="flex-between mb-3">
+                                    <h4><i class="fa-solid fa-truck"></i> พื้นที่ท้ายรถ (Cargo Space)</h4>
+                                    <span class="badge" id="cargo-vehicle-info" style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 5px 10px; border-radius: 6px;">รถกระบะ - กร 1234</span>
+                                </div>
+                                
+                                <div style="display:flex; justify-content: center; width: 100%;">
+                                    <div class="cargo-zone-wrapper" style="border: 2px dashed rgba(255,255,255,0.3); padding: 15px; border-radius: 8px; background: rgba(0,0,0,0.3); min-height: 350px; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+                                        <!-- The drop zone represents the actual truck bed. Dimensions updated dynamically. -->
+                                        <div id="cargo-drop-zone" class="cargo-drop-zone" style="position: relative; background: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.5); width: 80%; height: 280px; transition: all 0.3s; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
+                                            <div class="cargo-placeholder text-secondary" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;">
+                                                <i class="fa-solid fa-box-open fa-3x mb-2" style="opacity: 0.3;"></i><br>
+                                                Drop Area
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-4 text-right">
+                                    <button class="btn btn-primary" id="btn-confirm-packing"><i class="fa-solid fa-check-double"></i> ยืนยันการจัดบรรทุกเสร็จสิ้น</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Flow 4: Admin Settings -->
+                <section id="admin-settings" class="view-section glass-panel">
+                    <div class="settings-container">
+                        <!-- Car Data Settings -->
+                        <div class="glass-panel-inner mb-5 p-4">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-car text-accent"></i> ข้อมูลรถ (Car Management)</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">จัดการข้อมูลยานพาหนะของบริษัท</p>
+                            </div>
+                            <form class="dynamic-form" id="form-admin-car" onsubmit="event.preventDefault();">
+                                <div class="form-row split-row">
+                                    <div class="input-group">
+                                        <label>2.1 ประเภทรถ</label>
+                                        <select id="admin-car-type" required>
+                                            <option value="" disabled selected>เลือกประเภทรถ</option>
+                                            <option value="sedan">รถยนต์นั่ง (Sedan)</option>
+                                            <option value="pickup">รถกระบะ (Pickup)</option>
+                                            <option value="van">รถตู้ (Van)</option>
+                                            <option value="truck">รถบรรทุก (Truck)</option>
+                                        </select>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>2.2 ยี่ห้อรถ (Brand)</label>
+                                        <input type="text" id="admin-car-brand" placeholder="เช่น Toyota, Honda, Isuzu" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>2.3 รุ่น (Model)</label>
+                                        <input type="text" id="admin-car-model" placeholder="ระบุรุ่นรถ" required>
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>2.4 สีของรถ</label>
+                                        <input type="text" id="admin-car-color" placeholder="ระบุสี" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>2.5 ทะเบียนรถ</label>
+                                        <input type="text" id="admin-car-plate" placeholder="ระบุทะเบียน (เช่น กท 1234 กรุงเทพมหานคร)" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>2.6 น้ำมันที่ใช้ (Fuel)</label>
+                                        <select id="admin-car-fuel" required>
+                                            <option value="" disabled selected>เลือกชนิดน้ำมัน</option>
+                                            <option value="95">เบนซิน/แก๊สโซฮอล์ 95</option>
+                                            <option value="91">แก๊สโซฮอล์ 91</option>
+                                            <option value="e20">E20</option>
+                                            <option value="diesel">ดีเซล (Diesel)</option>
+                                            <option value="ev">ไฟฟ้า (EV)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-actions mt-4 text-right" style="text-align: right;">
+                                    <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลรถ</button>
+                                </div>
+                            </form>
+                            
+                            <!-- Table for Car List -->
+                            <div class="table-container mt-5">
+                                <h4 class="mb-3">รายการรถในระบบ</h4>
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ประเภท</th>
+                                            <th>ยี่ห้อ/รุ่น</th>
+                                            <th>สี</th>
+                                            <th>ทะเบียน</th>
+                                            <th>ชนิดน้ำมัน</th>
+                                            <th>จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-car-list">
+                                        <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">กำลังโหลดข้อมูล...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Part 3: Permissions Settings -->
+                        <div class="glass-panel-inner p-4">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-shield-halved text-accent"></i> ส่วนที่ 3: ตั้งค่าสิทธิ์การใช้งาน (Permissions)</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">กำหนดสิทธิ์เมนูอนุมัติรายรหัสพนักงาน คนที่ไม่มีสิทธิ์จะไม่เห็นเมนูอนุมัติ</p>
+                            </div>
+
+                            <form class="dynamic-form permission-form" id="form-menu-permission" onsubmit="event.preventDefault();">
+                                <div class="form-row split-row">
+                                    <div class="input-group">
+                                        <label>รหัสพนักงาน</label>
+                                        <input type="text" id="permission-employee-id" placeholder="เช่น 12022030801" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ชื่อผู้ใช้งาน</label>
+                                        <input type="text" id="permission-employee-name" placeholder="ใส่ชื่อเพื่อให้อ่านง่าย">
+                                    </div>
+                                </div>
+
+                                <div class="permission-menu-grid mt-3">
+                                    <label class="permission-toggle">
+                                        <input type="checkbox" value="manager-approval">
+                                        <span><i class="fa-solid fa-user-tie"></i> อนุมัติโดยหัวหน้า</span>
+                                    </label>
+                                    <label class="permission-toggle">
+                                        <input type="checkbox" value="hr-approval">
+                                        <span><i class="fa-solid fa-users-gear"></i> ตรวจสอบโดย HR</span>
+                                    </label>
+                                    <label class="permission-toggle">
+                                        <input type="checkbox" value="md-approval">
+                                        <span><i class="fa-solid fa-user-check"></i> อนุมัติโดย MD</span>
+                                    </label>
+                                    <label class="permission-toggle">
+                                        <input type="checkbox" value="accounting-approval">
+                                        <span><i class="fa-solid fa-file-invoice-dollar"></i> พนักงานบัญชีทำจ่าย</span>
+                                    </label>
+                                </div>
+
+                                <div class="form-actions mt-4 text-right" style="text-align: right;">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-fill-current-permission">
+                                        <i class="fa-solid fa-user-check"></i> ใช้รหัสผู้ที่ล็อกอินอยู่
+                                    </button>
+                                    <button type="reset" class="btn btn-secondary btn-sm">
+                                        <i class="fa-solid fa-eraser"></i> ล้างฟอร์ม
+                                    </button>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกสิทธิ์เมนู
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="table-container mt-5">
+                                <h4 class="mb-3">รายการสิทธิ์เมนูอนุมัติ</h4>
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>รหัสพนักงาน</th>
+                                            <th>ชื่อ</th>
+                                            <th>เมนูที่มองเห็น</th>
+                                            <th>จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="menu-permission-list">
+                                        <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ยังไม่มีการตั้งค่าสิทธิ์</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="permission-management" class="view-section glass-panel">
+                    <div class="flex-between mb-4">
+                        <div>
+                            <h3 class="section-subtitle mb-0" style="border-bottom: none;"><i class="fa-solid fa-shield-halved text-accent"></i> จัดการสิทธิ์</h3>
+                            <p class="text-secondary">สร้างชื่อสิทธิ์ กำหนดเมนูที่เข้าได้ และกำหนดสิทธิ์ให้พนักงาน</p>
+                        </div>
+                    </div>
+
+                    <div class="permission-management-layout">
+                        <div class="glass-panel-inner permission-role-panel">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-id-badge text-accent"></i> 1. ชื่อสิทธิ์</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">ตั้งชื่อกลุ่มสิทธิ์ เช่น ผู้ดูแลระบบ, HR, หัวหน้างาน</p>
+                            </div>
+
+                            <form class="dynamic-form" id="form-permission-role" onsubmit="event.preventDefault();">
+                                <input type="hidden" id="permission-role-id">
+                                <div class="input-group">
+                                    <label>ชื่อสิทธิ์</label>
+                                    <input type="text" id="permission-role-name" placeholder="เช่น ผู้ดูแลระบบ" required>
+                                </div>
+
+                                <div class="form-actions mt-3" style="display: flex; gap: 10px; justify-content: flex-end;">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-permission-role">
+                                        <i class="fa-solid fa-rotate-left"></i> สร้างใหม่
+                                    </button>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกชื่อสิทธิ์
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="permission-role-list mt-4" id="permission-role-list"></div>
+                        </div>
+
+                        <div class="glass-panel-inner permission-access-panel">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-list-check text-accent"></i> 2. จัดการสิทธิ์</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">เลือกเมนูที่สิทธิ์นี้สามารถมองเห็นและเข้าใช้งานได้</p>
+                            </div>
+
+                            <div class="permission-toolbar mb-3">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-permission-select-all">
+                                    <i class="fa-solid fa-check-double"></i> เลือกทั้งหมด
+                                </button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-permission-clear">
+                                    <i class="fa-solid fa-ban"></i> ล้างทั้งหมด
+                                </button>
+                            </div>
+
+                            <div class="permission-menu-grid permission-menu-grid-wide" id="permission-role-menu-grid"></div>
+                        </div>
+
+                        <div class="glass-panel-inner permission-employee-panel">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-users-gear text-accent"></i> 3. จัดการพนักงาน/สิทธิ์ของพนักงาน</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">เลือกพนักงานแล้วกำหนดชื่อสิทธิ์ให้ใช้งาน</p>
+                            </div>
+
+                            <form class="dynamic-form" id="form-employee-permission" onsubmit="event.preventDefault();">
+                                <div class="form-row split-row">
+                                    <div class="input-group">
+                                        <label>รหัสพนักงาน</label>
+                                        <input type="text" id="employee-permission-id" list="employee-permission-options" placeholder="ค้นหารหัสจากฐานข้อมูล" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ชื่อพนักงาน</label>
+                                        <input type="text" id="employee-permission-name" placeholder="ค้นหาชื่อจากฐานข้อมูล">
+                                    </div>
+                                </div>
+                                <datalist id="employee-permission-options"></datalist>
+                                <div class="permission-employee-search" id="employee-permission-search-results"></div>
+                                <div class="form-row mt-3">
+                                    <div class="input-group w-full">
+                                        <label>ชื่อสิทธิ์</label>
+                                        <select id="employee-permission-role" required></select>
+                                    </div>
+                                </div>
+                                <div class="form-actions mt-4" style="display: flex; gap: 10px; justify-content: flex-end;">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-fill-current-employee-permission">
+                                        <i class="fa-solid fa-user-check"></i> ใช้รหัสผู้ที่ล็อกอินอยู่
+                                    </button>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกสิทธิ์พนักงาน
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="table-container mt-5">
+                                <table class="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>รหัสพนักงาน</th>
+                                            <th>ชื่อ</th>
+                                            <th>ชื่อสิทธิ์</th>
+                                            <th>เมนูที่เข้าได้</th>
+                                            <th>จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="employee-permission-list">
+                                        <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">ยังไม่มีการกำหนดสิทธิ์พนักงาน</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="company-settings" class="view-section glass-panel">
+                    <div class="flex-between mb-4">
+                        <div>
+                            <h3 class="section-subtitle mb-0" style="border-bottom: none;"><i class="fa-solid fa-building text-accent"></i> ข้อมูลบริษัท</h3>
+                            <p class="text-secondary">เพิ่มบริษัทและเลือกบริษัทที่จะใช้บนใบปริ้นแผนการเดินทาง</p>
+                        </div>
+                    </div>
+
+                    <div class="company-settings-grid">
+                        <div class="glass-panel-inner company-active-card">
+                            <span class="company-card-kicker">บริษัทที่เลือกใช้งาน</span>
+                            <h3 id="company-active-name">AESCON CO.,LTD.</h3>
+                            <div class="company-active-logo-wrap">
+                                <img id="company-active-logo" src="assets/logos/aescon-logo.png" alt="Company logo">
+                            </div>
+                            <p id="company-active-detail">บริษัท เออีเอสคอน จำกัด</p>
+                            <div class="company-active-meta">
+                                <span><i class="fa-solid fa-file-lines"></i> Prefix: <strong id="company-active-prefix">TR</strong></span>
+                                <span><i class="fa-solid fa-id-card"></i> Tax ID: <strong id="company-active-tax">-</strong></span>
+                                <span><i class="fa-solid fa-database"></i> Database: <strong id="company-active-database">sge_sitecontroldb</strong></span>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel-inner">
+                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                                <h3><i class="fa-solid fa-square-plus text-accent"></i> เพิ่มบริษัท</h3>
+                                <p class="text-sm text-secondary" style="margin-top: 5px;">บันทึกไว้ในเครื่องนี้ และใช้เลือกหัวกระดาษใบปริ้น</p>
+                            </div>
+                            <form class="dynamic-form" id="form-company" onsubmit="event.preventDefault();">
+                                <div class="form-row split-row">
+                                    <div class="input-group">
+                                        <label>รหัสบริษัท</label>
+                                        <input type="text" id="company-code" placeholder="เช่น AES, SGE" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ฐานข้อมูล PostgreSQL</label>
+                                        <input type="text" id="company-database" placeholder="เช่น sge_sitecontroldb" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>เลขที่เอกสารขึ้นต้น</label>
+                                        <input type="text" id="company-doc-prefix" placeholder="เช่น TR" value="TR">
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>ชื่อบริษัทภาษาไทย</label>
+                                        <input type="text" id="company-name-th" placeholder="บริษัท ..." required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label>ชื่อบริษัทภาษาอังกฤษ</label>
+                                        <input type="text" id="company-name-en" placeholder="COMPANY CO.,LTD." required>
+                                    </div>
+                                </div>
+                                <div class="form-row split-row mt-3">
+                                    <div class="input-group">
+                                        <label>เลขประจำตัวผู้เสียภาษี</label>
+                                        <input type="text" id="company-tax-id" placeholder="ระบุถ้ามี">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>เบอร์ติดต่อ</label>
+                                        <input type="text" id="company-phone" placeholder="ระบุถ้ามี">
+                                    </div>
+                                </div>
+                                <div class="form-row mt-3">
+                                    <div class="input-group">
+                                        <label>ที่อยู่</label>
+                                        <textarea id="company-address" rows="3" placeholder="ที่อยู่บริษัท"></textarea>
+                                    </div>
+                                </div>
+                                <div class="form-actions mt-4" style="display: flex; justify-content: flex-end; gap: 10px;">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-company-form">
+                                        <i class="fa-solid fa-rotate-left"></i> ล้างฟอร์ม
+                                    </button>
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกบริษัท
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="table-container mt-5">
+                        <h4 class="mb-3">รายชื่อบริษัท</h4>
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>สถานะ</th>
+                                    <th>รหัส</th>
+                                    <th>ชื่อบริษัท</th>
+                                    <th>ฐานข้อมูล</th>
+                                    <th>Prefix</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="company-list">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ยังไม่มีข้อมูลบริษัท</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="ai-assistant" class="view-section glass-panel">
+                    <div class="ai-assistant-shell">
+                        <div class="ai-assistant-header">
+                            <div>
+                                <h3 class="section-subtitle mb-0" style="border-bottom: none;"><i class="fa-solid fa-robot text-accent"></i> ผู้ช่วย AI GPT</h3>
+                                <p class="text-secondary">ใช้งาน AI-GPT-App ในหน้า TMS เดียวกัน สำหรับถามงานขนส่ง สรุปข้อมูล ร่างข้อความ และช่วยตรวจเอกสาร</p>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <select id="ai-provider-select" style="min-width: 170px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.45); color: white; border-radius: 8px; padding: 10px 12px;">
+                                    <option value="openai">OpenAI GPT</option>
+                                    <option value="gemini">Gemini</option>
+                                </select>
+                                <div class="ai-status-pill" id="ai-status-pill">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                    <span>กำลังตรวจสอบ AI-GPT-App</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ai-assistant-grid">
+                            <div class="glass-panel-inner ai-chat-panel">
+                                <div class="ai-feature-toolbar">
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-new-chat"><i class="fa-solid fa-plus"></i> แชทใหม่</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-attach"><i class="fa-solid fa-paperclip"></i> แนบไฟล์</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-voice"><i class="fa-solid fa-microphone"></i> พูด</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-export"><i class="fa-solid fa-download"></i> Export</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-ai-clear"><i class="fa-solid fa-trash-can"></i> ล้าง</button>
+                                    <input type="file" id="ai-attachment-input" multiple hidden>
+                                </div>
+                                <div class="ai-attachment-list" id="ai-attachment-list" hidden></div>
+                                <div class="ai-chat-log" id="ai-chat-log" aria-live="polite">
+                                    <div class="ai-message ai-message-assistant">
+                                        <div class="ai-message-avatar"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                                        <div class="ai-message-bubble">สวัสดีครับ ผมใช้ระบบจาก AI-GPT-App แล้ว อยู่ในหน้าเดียวกับ TMS พร้อมช่วยงานขนส่งได้เลย</div>
+                                    </div>
+                                </div>
+
+                                <form id="ai-chat-form" class="ai-chat-form">
+                                    <textarea id="ai-message-input" rows="3" placeholder="เช่น ช่วยร่างข้อความแจ้งลูกค้าว่ารถจะถึงช้า 30 นาที..." required></textarea>
+                                    <button type="submit" class="btn btn-primary" id="btn-ai-send">
+                                        <i class="fa-solid fa-paper-plane"></i> ส่ง
+                                    </button>
+                                </form>
+                            </div>
+
+                            <aside class="glass-panel-inner ai-side-panel">
+                                <h4><i class="fa-solid fa-clock-rotate-left text-accent"></i> ประวัติแชท</h4>
+                                <div class="ai-history-list" id="ai-history-list"></div>
+
+                                <h4><i class="fa-solid fa-bolt text-accent"></i> คำสั่งด่วน</h4>
+                                <button type="button" class="ai-prompt-chip" data-ai-prompt="สร้างรูปภาพรถบรรทุกขนส่งสินค้าในสไตล์สมจริงสำหรับใช้ในงานนำเสนอ">
+                                    <i class="fa-solid fa-image"></i>
+                                    สร้างรูป
+                                </button>
+                                <button type="button" class="ai-prompt-chip" data-ai-prompt="ช่วยวางแผนเส้นทางขนส่งให้ประหยัดเวลา โดยมีจุดรับสินค้า จุดส่งสินค้า และข้อควรระวังอะไรบ้าง">
+                                    <i class="fa-solid fa-route"></i>
+                                    วางแผนเส้นทาง
+                                </button>
+                                <button type="button" class="ai-prompt-chip" data-ai-prompt="ช่วยร่างข้อความแจ้งลูกค้าเรื่องสถานะการจัดส่ง ให้สุภาพ กระชับ และเป็นมืออาชีพ">
+                                    <i class="fa-solid fa-message"></i>
+                                    ร่างข้อความลูกค้า
+                                </button>
+                                <button type="button" class="ai-prompt-chip" data-ai-prompt="ช่วยสรุปรายการตรวจเช็ครถก่อนออกเดินทางสำหรับพนักงานขับรถ">
+                                    <i class="fa-solid fa-clipboard-check"></i>
+                                    เช็ครถก่อนเดินทาง
+                                </button>
+                                <button type="button" class="ai-prompt-chip" data-ai-prompt="ช่วยวิเคราะห์ความเสี่ยงของงานขนส่งวันนี้ เช่น ฝนตก รถติด น้ำมัน และเวลาส่งมอบ">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                    วิเคราะห์ความเสี่ยง
+                                </button>
+
+                                <div class="ai-token-note">
+                                    <i class="fa-solid fa-key"></i>
+                                    <span>ใช้ backend จากโฟลเดอร์ AI-GPT-App ผ่าน /ai-gpt-app/api โดยไม่เปิดหน้าแยก</span>
+                                </div>
+                            </aside>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="car-document-approval" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-file-signature text-accent"></i> 3.4 อนุมัติเอกสาร</h3>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-file-circle-check fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>เตรียมพื้นที่สำหรับอนุมัติเอกสารจัดรถ</h4>
+                        <p>หน้านี้จะใช้ตรวจและอนุมัติเอกสาร F175, F60 และเอกสารจองรถใช้งานทั่วไป</p>
+                    </div>
+                </section>
+
+                <section id="car-document-status" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-chart-simple text-accent"></i> 3.5 สถานะเอกสาร</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #3b82f6;"><i class="fa-solid fa-file-lines"></i></div>
+                            <div class="stat-info"><h4>เอกสารวันนี้</h4><div class="stat-value">0</div></div>
+                        </div>
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #f59e0b;"><i class="fa-solid fa-clock"></i></div>
+                            <div class="stat-info"><h4>รออนุมัติ</h4><div class="stat-value">0</div></div>
+                        </div>
+                        <div class="stat-card glass-panel-inner">
+                            <div class="stat-icon" style="color: #10b981;"><i class="fa-solid fa-truck-fast"></i></div>
+                            <div class="stat-info"><h4>พร้อมจัดรถ</h4><div class="stat-value">0</div></div>
+                        </div>
+                    </div>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-chart-line fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>Dashboard สถานะเอกสารจัดรถ</h4>
+                        <p>เตรียมไว้สำหรับดูภาพรวม F175, F60, เอกสารทั่วไป, สถานะอนุมัติ และคิวรถ</p>
+                    </div>
+                </section>
+
+                <!-- NEW TMS PLACEHOLDERS -->
+                <section id="route-optimization" class="view-section glass-panel">
+                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-route text-accent"></i> จัดการเส้นทางเดินรถ (Route Optimization)</h3>
+                    
+                    <div class="dashboard-middle-grid" style="grid-template-columns: 1fr 2fr; gap: 20px;">
+                        <!-- Left Panel: Controls -->
+                        <div class="glass-panel-inner" style="display: flex; flex-direction: column; gap: 15px;">
+                            <div class="flex-between">
+                                <h4><i class="fa-solid fa-location-dot text-danger"></i> จุดหมาย (Waypoints)</h4>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-add-route-stop"><i class="fa-solid fa-plus"></i> เพิ่มจุดหมาย</button>
+                            </div>
+                            
+                            <div id="route-waypoints-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 5px;">
+                                <!-- Waypoints will be generated here -->
+                            </div>
+                            
+                            <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                            
+                            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                                <button type="button" class="btn btn-secondary flex-grow-1" id="btn-calc-route">
+                                    <i class="fa-solid fa-calculator"></i> คำนวณ (Calculate)
+                                </button>
+                                <button type="button" class="btn btn-primary flex-grow-1" id="btn-optimize-route" style="background: linear-gradient(135deg, #8b5cf6, #6d28d9);">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> จัดลำดับให้สั้นที่สุด (Optimize)
+                                </button>
+                            </div>
+
+                            <div class="input-group mb-2">
+                                <label><i class="fa-solid fa-truck"></i> กำหนดรถที่ใช้จัดส่ง (Assign Vehicle)</label>
+                                <select id="route-vehicle-select">
+                                    <option value="">-- เลือกรถที่จะจัดส่ง --</option>
+                                    <option value="6W-8492">6 ล้อ (8492 กทม.) - สมชาย ใจดี</option>
+                                    <option value="4W-1122">4 ล้อ (1122 ชลบุรี) - สมศรี มีชัย</option>
+                                    <option value="10W-5555">10 ล้อ (5555 ระยอง) - สมศักดิ์ รักชาติ</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Summary Card -->
+                            <div class="stat-card mt-auto" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 15px; border-radius: 8px;">
+                                <h5 class="text-secondary mb-2" style="font-size: 0.9rem;">สรุปเส้นทาง (Route Summary)</h5>
+                                <div class="flex-between mb-1">
+                                    <span class="text-sm">ระยะทางรวม:</span>
+                                    <strong id="route-total-distance" class="text-accent">0 กม.</strong>
+                                </div>
+                                <div class="flex-between mb-3">
+                                    <span class="text-sm">เวลาเดินทางโดยประมาณ:</span>
+                                    <strong id="route-total-time" class="text-accent">0 นาที</strong>
+                                </div>
+                                <button type="button" class="btn btn-primary w-100" id="btn-save-route-plan">
+                                    <i class="fa-solid fa-floppy-disk"></i> บันทึกและจ่ายงาน (Save & Assign)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Map -->
+                        <div class="glass-panel-inner" style="padding: 0; overflow: hidden; position: relative;">
+                            <div id="optimizer-map" style="width: 100%; height: 600px; background: #e5e7eb; border-radius: 8px; z-index: 1;"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="packing" class="view-section glass-panel">
+                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-box-open text-accent"></i> จัดเรียงสินค้า (Load Planning)</h3>
+                    
+                    <div class="dashboard-middle-grid" style="grid-template-columns: 300px 1fr; gap: 20px;">
+                        <!-- Left Panel: Cargo Pool -->
+                        <div class="glass-panel-inner" style="display: flex; flex-direction: column; gap: 15px; max-height: 700px;">
+                            <div class="input-group">
+                                <label><i class="fa-solid fa-truck"></i> เลือกรถจัดส่ง (Select Truck)</label>
+                                <select id="packing-truck-select">
+                                    <option value="4W">รถกระบะ 4 ล้อ (ความจุ 1,500 kg)</option>
+                                    <option value="6W" selected>รถบรรทุก 6 ล้อ (ความจุ 5,000 kg)</option>
+                                    <option value="10W">รถบรรทุก 10 ล้อ (ความจุ 15,000 kg)</option>
+                                </select>
+                            </div>
+                            
+                            <hr style="border-color: rgba(255,255,255,0.1); margin: 5px 0;">
+                            
+                            <div class="flex-between">
+                                <h4><i class="fa-solid fa-cubes text-accent"></i> สินค้ารอจัดเรียง</h4>
+                                <span class="badge" style="background: rgba(249, 115, 22, 0.2); color: #f97316;" id="packing-unassigned-count">0 ชิ้น</span>
+                            </div>
+                            
+                            <div id="cargo-pool-list" style="flex-grow: 1; overflow-y: auto; padding-right: 5px; display: flex; flex-direction: column; gap: 10px; min-height: 200px;">
+                                <!-- Draggable items will be appended here -->
+                            </div>
+                            
+                            <button type="button" class="btn btn-primary w-100 mt-auto" id="btn-auto-pack">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> จัดเรียงอัตโนมัติ (Auto-Pack)
+                            </button>
+                        </div>
+
+                        <!-- Right Panel: Truck Bed Visualization -->
+                        <div class="glass-panel-inner" style="display: flex; flex-direction: column; gap: 15px;">
+                            <div class="flex-between align-items-center mb-2">
+                                <h4><i class="fa-solid fa-truck-moving text-accent"></i> พื้นที่ท้ายรถ (Truck Bed Simulation)</h4>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-pack"><i class="fa-solid fa-rotate-left"></i> รีทิ้งทั้งหมด (Reset)</button>
+                            </div>
+                            
+                            <div class="stat-card" style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px;">
+                                <div class="flex-between mb-2">
+                                    <span class="text-sm">น้ำหนักบรรทุก (Weight): <span id="packing-weight-text">0 / 0 kg</span></span>
+                                    <strong id="packing-weight-percent" class="text-accent">0%</strong>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; margin-bottom: 15px;">
+                                    <div id="packing-weight-bar" style="width: 0%; height: 100%; background: #f97316; transition: width 0.3s, background 0.3s;"></div>
+                                </div>
+                                
+                                <div class="flex-between mb-2">
+                                    <span class="text-sm">ปริมาตรและพื้นที่ (Volume): <span id="packing-vol-text">0 / 0 CBM</span></span>
+                                    <strong id="packing-vol-percent" class="text-accent">0%</strong>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                                    <div id="packing-vol-bar" style="width: 0%; height: 100%; background: #3b82f6; transition: width 0.3s, background 0.3s;"></div>
+                                </div>
+                            </div>
+
+                            <div id="truck-bed-container" 
+                                 style="flex-grow: 1; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 20px, rgba(255,255,255,0.05) 20px, rgba(255,255,255,0.05) 40px); border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; position: relative; min-height: 400px; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; padding: 10px; transition: border-color 0.3s; overflow-y: auto;">
+                                <div id="truck-bed-placeholder" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.3); font-size: 1.2rem; pointer-events: none; text-align: center;">
+                                    <i class="fa-solid fa-arrow-down fa-2x mb-2"></i><br>ลากกล่องสินค้ามาวางที่นี่
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="delivery-scheduling" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-clock"></i> Delivery Scheduling</h3>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-calendar fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>กำลังพัฒนาระบบตารางเวลา...</h4>
+                        <p>ตารางส่งมอบงาน (Timeline & Chart) สำหรับวางแผนการจัดส่งล่วงหน้า</p>
+                    </div>
+                </section>
+
+                <section id="import-orders" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-file-import"></i> Create / Import Orders</h3>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-cloud-arrow-up fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>กำลังพัฒนาการนำเข้าข้อมูลออเดอร์...</h4>
+                        <p>ฟีเจอร์รองรับการอัปโหลดไฟล์ Excel/CSV หรือเชื่อมต่อ ERP สร้างรายการส่งของอัตโนมัติ</p>
+                    </div>
+                </section>
+
+                <section id="shipment-tracking" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-satellite-dish"></i> Shipment Tracking</h3>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-truck-fast fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>กำลังพัฒนาระบบ Tracking ประวัติย้อนหลัง...</h4>
+                        <p>ตรวจสอบหลักฐานการส่งมอบ (POD), ลายเซ็นต์ดิจิทัล และสถานะของทุกรายการ</p>
+                    </div>
+                </section>
+
+                <section id="exceptions-handling" class="view-section glass-panel">
+                    <h3 class="section-subtitle"><i class="fa-solid fa-triangle-exclamation text-danger"></i> Exceptions Handling</h3>
+                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
+                        <i class="fa-solid fa-circle-exclamation text-danger fa-3x mb-3" style="opacity: 0.5;"></i>
+                        <h4>กำลังพัฒนาระบบจัดการข้อผิดพลาด...</h4>
+                        <p>พิจารณาและจัดการเคสสินค้าเสียหาย, ส่งมอบไม่สำเร็จ หรืออุบัติเหตุระหว่างทาง</p>
+                    </div>
+                </section>
+
+                <section id="maintenance" class="view-section glass-panel">
+                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-wrench text-accent"></i> การบำรุงรักษายานพาหนะ (Maintenance Scheduling)</h3>
+                    <div class="flex-between mb-4">
+                        <p class="text-secondary">ติดตามและกำหนดการซ่อมบำรุงของฝูงรถ</p>
+                        <button class="btn btn-primary btn-sm" id="btn-add-maintenance"><i class="fa-solid fa-plus"></i> บันทึกรายการใหม่</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>ทะเบียนรถ</th>
+                                    <th>รายการ</th>
+                                    <th>วันที่ซ่อมล่าสุด</th>
+                                    <th>กำหนดถัดไป (กม. / วันที่)</th>
+                                    <th>สถานะ</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maintenance-list-body">
+                                <tr>
+                                    <td>6W-8492</td>
+                                    <td>เปลี่ยนน้ำมันเครื่อง</td>
+                                    <td>15/02/2026</td>
+                                    <td>50,000 กม. / 15/08/2026</td>
+                                    <td><span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">ปกติ</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                                <tr>
+                                    <td>4W-1122</td>
+                                    <td>ตรวจเช็คระบบเบรก</td>
+                                    <td>10/01/2026</td>
+                                    <td>35,000 กม. / 10/07/2026</td>
+                                    <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">ใกล้ถึงกำหนด</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="fuel" class="view-section glass-panel">
+                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-gas-pump text-accent"></i> การจัดการน้ำมัน (Fuel Management)</h3>
+                    <div class="flex-between mb-4">
+                        <p class="text-secondary">บันทึกและติดตามการใช้พลังงาน</p>
+                        <button class="btn btn-primary btn-sm" id="btn-add-fuel-log"><i class="fa-solid fa-plus"></i> บันทึกการเติมน้ำมัน</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>วันที่</th>
+                                    <th>ทะเบียนรถ</th>
+                                    <th>ชนิดน้ำมัน</th>
+                                    <th>จำนวน (ลิตร)</th>
+                                    <th>ยอดเงิน (บาท)</th>
+                                    <th>เลขไมล์ล่าสุด</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fuel-log-body">
+                                <tr>
+                                    <td>20/03/2026</td>
+                                    <td>6W-8492</td>
+                                    <td>ดีเซล</td>
+                                    <td>120.50</td>
+                                    <td>4,200</td>
+                                    <td>42,500</td>
+                                    <td><button class="btn-icon text-danger"><i class="fa-solid fa-trash"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="travel-plan-printout" class="printout-sheet" aria-hidden="true"></div>
+
+    <!-- Google Map Modal -->
+    <div id="map-modal" class="modal-overlay">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-map-location-dot"></i> เลือกสถานที่บนแผนที่</h3>
+                <button type="button" class="btn-close-modal" id="btn-close-map"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="map-search-bar mb-3">
+                    <label>ค้นหาสถานที่ที่ปักหมุดไว้</label>
+                    <div class="input-with-action">
+                        <input type="text" id="map-search-input" placeholder="ค้นหาสถานที่ยอดนิยม..." style="flex-grow: 1;">
+                        <button type="button" class="btn btn-primary" id="btn-search-location"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</button>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label>หรือ ระบุจุดที่ไม่ได้ปักหมุด (Custom Location)</label>
+                    <div class="input-with-action">
+                        <input type="text" id="map-custom-input" placeholder="พิมพ์ชื่อสถานที่ที่ต้องการ (เช่น ปากซอยสุขุมวิท 101)..." style="flex-grow: 1;">
+                        <button type="button" class="btn btn-secondary" id="btn-use-custom-location"><i class="fa-solid fa-thumbtack"></i> ใช้จุดนี้</button>
+                    </div>
+                </div>
+
+                <!-- Search Results Suggestion List -->
+                <div id="map-search-results" class="search-results-list" style="max-height: 150px; overflow-y: auto;">
+                    <!-- Items inserted via JS -->
+                </div>
+                <!-- Interactive Leaflet Map for Location Selection -->
+                <div class="map-container">
+                    <button type="button" class="map-layer-toggle" id="btn-toggle-map-layer" title="สลับเป็นภาพดาวเทียม">
+                        <i class="fa-solid fa-satellite"></i>
+                        <span>ดาวเทียม</span>
+                    </button>
+                    <div id="location-picker-map" style="width: 100%; height: 400px; border-radius: 8px; z-index: 1; background: #e5e7eb;"></div>
+                </div>
+            </div>
+            <div class="modal-footer mt-4 flex-between">
+                <div class="selected-location-text text-secondary">สถานที่จำลอง: <strong id="mock-location-name">สวนลุมพินี (Lumphini Park)</strong></div>
+                <button type="button" class="btn btn-primary" id="btn-confirm-map"><i class="fa-solid fa-check"></i> ยืนยันสถานที่นี้</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Vehicle Detail Modal -->
+    <div id="vehicle-detail-modal" class="modal-overlay">
+        <div class="modal-content glass-panel" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-circle-info text-accent"></i> รายละเอียดการเดินทาง (Journey Details)</h3>
+                <button class="btn-icon text-muted" id="btn-close-vehicle-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="vehicle-detail-content">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Travel Request Preview Modal -->
+    <div id="travel-request-preview-modal" class="modal-overlay">
+        <div class="modal-content glass-panel request-preview-modal">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-lines text-accent"></i> พรีวิวรายละเอียดเอกสาร</h3>
+                <button type="button" class="btn-close-modal" id="btn-close-travel-preview"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="travel-request-preview-content">
+                <div class="travel-status-empty">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>กำลังโหลดรายละเอียดเอกสาร...</span>
+                </div>
+            </div>
+            <div class="modal-footer flex-between">
+                <span class="text-secondary text-sm">ตรวจสอบรายละเอียดก่อนอนุมัติหรือทำจ่าย</span>
+                <div class="preview-modal-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-print-travel-preview">
+                        <i class="fa-solid fa-print"></i> ปริ้นเอ้าท์
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-close-travel-preview-footer">
+                        <i class="fa-solid fa-check"></i> ปิดหน้าพรีวิว
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/modules/api.js?v=11"></script>
+    <script src="js/app.js?v=45"></script>
+</body>
+</html>

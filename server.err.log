@@ -1,0 +1,39 @@
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Asset vehicle sync skipped for srental_sitecontroldb: database "srental_sitecontroldb" does not exist
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Warning: Redis is unavailable. Cache API will skip Redis: Socket closed unexpectedly
+Error: Unable to geocode
+    at searchLocationIq (C:\Users\tumta\OneDrive\เอกสาร\Antigravity\Transport\routes\places.js:27:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async C:\Users\tumta\OneDrive\เอกสาร\Antigravity\Transport\routes\places.js:77:24
+Asset vehicle sync skipped for sge_sitecontroldb: read ECONNRESET
+Menu permissions unavailable, returning empty list: read ECONNRESET
+Travel requests list unavailable, returning empty list: read ECONNRESET
+Travel requests list unavailable, returning empty list: read ECONNRESET
+Travel requests list unavailable, returning empty list: read ECONNRESET
+Travel requests list unavailable, returning empty list: read ECONNRESET
+Asset vehicle sync skipped for sge_sitecontroldb: connect EHOSTUNREACH 147.50.169.3:5432
+Asset vehicle sync skipped for aes_sitecontroldb: connect EHOSTUNREACH 147.50.169.3:5432
+Asset vehicle sync skipped for srt_sitecontroldb: connect EHOSTUNREACH 147.50.169.3:5432
