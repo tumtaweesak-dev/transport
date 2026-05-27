@@ -30,7 +30,7 @@ app.use('/ai-gpt-app', aiGptApp);
 app.use(express.json({ limit: '25mb' }));
 
 app.use('/api', createCacheRouter({ pgPool, redisClient }));
-app.use('/api', createAuthRouter({ pgPool }));
+app.use('/api', createAuthRouter({ pgPool, mysqlPool }));
 app.use('/api', createUsersRouter({ pgPool, mysqlPool }));
 app.use('/api', createCarsRouter({ mysqlPool, pgPool }));
 app.use('/api', createGpsRouter());

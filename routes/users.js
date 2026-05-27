@@ -1,6 +1,7 @@
 const express = require('express');
 const asyncHandler = require('../middleware/asyncHandler');
 const { requireFields } = require('../middleware/validate');
+const { hashPassword } = require('../utils/passwords');
 
 let lastEmployeeSyncAt = 0;
 const EMPLOYEE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
@@ -84,18 +85,22 @@ module.exports = function createUsersRouter({ pgPool, mysqlPool }) {
   router.post('/users', asyncHandler(async (req, res) => {
     requireFields(req.body, ['employeeId', 'name']);
 
-    const { employeeId, name, branch, department, position } = req.body;
+    const { employeeId, name, branch, department, position, password } = req.body;
     const employeeCode = String(employeeId).trim();
+    const passwordValue = String(password || '').trim();
+    const passwordHash = passwordValue ? hashPassword(passwordValue) : null;
 
     await mysqlPool.execute(
       `INSERT INTO editable_employees
-         (employee_id, name, branch, department, position, record_source, is_edited)
-       VALUES (?, ?, ?, ?, ?, 'mysql-edit', 1)
+         (employee_id, name, branch, department, position, password_hash, password_updated_at, record_source, is_edited)
+       VALUES (?, ?, ?, ?, ?, ?, IF(? IS NULL, NULL, CURRENT_TIMESTAMP), 'mysql-edit', 1)
        ON DUPLICATE KEY UPDATE
          name = VALUES(name),
-         branch = VALUES(branch),
-         department = VALUES(department),
-         position = VALUES(position),
+         branch = COALESCE(VALUES(branch), branch),
+         department = COALESCE(VALUES(department), department),
+         position = COALESCE(VALUES(position), position),
+         password_hash = COALESCE(VALUES(password_hash), password_hash),
+         password_updated_at = IF(VALUES(password_hash) IS NULL, password_updated_at, CURRENT_TIMESTAMP),
          record_source = 'mysql-edit',
          is_edited = 1`,
       [
@@ -104,6 +109,8 @@ module.exports = function createUsersRouter({ pgPool, mysqlPool }) {
         branch || null,
         department || null,
         position || null,
+        passwordHash,
+        passwordHash,
       ]
     );
 

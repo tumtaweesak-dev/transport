@@ -31,12 +31,17 @@ async function ensureMysqlSchema() {
       branch VARCHAR(100),
       department VARCHAR(100),
       position VARCHAR(100),
+      password_hash VARCHAR(255),
+      password_updated_at TIMESTAMP NULL,
       record_source VARCHAR(30) DEFAULT 'postgres',
       is_edited TINYINT(1) DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
+
+  await ensureMysqlColumn('editable_employees', 'password_hash', 'VARCHAR(255)');
+  await ensureMysqlColumn('editable_employees', 'password_updated_at', 'TIMESTAMP NULL');
 
   await mysqlPool.execute(`
     CREATE TABLE IF NOT EXISTS editable_cars (

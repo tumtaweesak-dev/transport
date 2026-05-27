@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loginPasswordInput = document.getElementById('login-password');
     const loginError = document.getElementById('login-error');
     const loginSubmitButton = formLogin ? formLogin.querySelector('.login-submit') : null;
+    const btnResetLoginPassword = document.getElementById('btn-reset-login-password');
     const companyGate = document.getElementById('company-gate');
     const companyGateUser = document.getElementById('company-gate-user');
     const companyGateList = document.getElementById('company-gate-list');
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLogout = document.getElementById('btn-logout');
     const btnToggleLoginPassword = document.getElementById('btn-toggle-login-password');
     const defaultLoginButtonHtml = loginSubmitButton ? loginSubmitButton.innerHTML : '';
+    const isStaticHostedApp = window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:';
     const MENU_PERMISSION_KEY = 'tms_menu_permissions_v1';
     const APPROVAL_MENU_CONFIG = [
         { id: 'manager-approval', label: 'อนุมัติโดยหัวหน้า', icon: 'fa-user-tie' },
@@ -78,6 +80,23 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem(LOGIN_SESSION_KEY);
         if (loginPasswordInput) loginPasswordInput.value = '';
         applyAuthState();
+    }
+
+    function canUseStaticLoginFallback(username, password) {
+        return isStaticHostedApp && username && password && username === password;
+    }
+
+    function saveStaticLoginSession(username) {
+        saveLoginSession({
+            auth: 'employee-code',
+            username,
+            displayName: username,
+            company: null,
+            branch: null,
+            department: null,
+            loginMode: 'static-github-pages',
+            loginAt: new Date().toISOString()
+        });
     }
 
     function markCompanySelected(company) {
@@ -149,12 +168,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = (loginPasswordInput?.value || '').trim();
 
             if (!username || !password) {
-                if (loginError) loginError.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+                if (loginError) {
+                    loginError.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+                    loginError.classList.remove('is-success');
+                }
                 return;
             }
 
             if (!window.TransportApi || typeof window.TransportApi.login !== 'function') {
-                if (loginError) loginError.textContent = 'ยังเชื่อมต่อระบบล็อกอินไม่ได้';
+                if (loginError) {
+                    loginError.textContent = 'ยังเชื่อมต่อระบบล็อกอินไม่ได้';
+                    loginError.classList.remove('is-success');
+                }
                 return;
             }
 
@@ -177,11 +202,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     loginAt: payload.loginAt || new Date().toISOString()
                 });
 
-                if (loginError) loginError.textContent = '';
+                if (loginError) {
+                    loginError.textContent = '';
+                    loginError.classList.remove('is-success');
+                }
                 if (loginPasswordInput) loginPasswordInput.value = '';
                 applyAuthState();
             } catch (error) {
-                if (loginError) loginError.textContent = error.message || 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง';
+                if (canUseStaticLoginFallback(username, password)) {
+                    saveStaticLoginSession(username);
+                    if (loginError) {
+                        loginError.textContent = '';
+                        loginError.classList.remove('is-success');
+                    }
+                    if (loginPasswordInput) loginPasswordInput.value = '';
+                    applyAuthState();
+                    return;
+                }
+                if (loginError) {
+                    loginError.textContent = isStaticHostedApp
+                        ? 'เว็บบน GitHub ไม่มี API ระบบจึงใช้ได้เฉพาะรหัสผ่านที่ตรงกับรหัสพนักงาน'
+                        : (error.message || 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง');
+                    loginError.classList.remove('is-success');
+                }
             } finally {
                 if (loginSubmitButton) {
                     loginSubmitButton.disabled = false;
@@ -224,6 +267,68 @@ document.addEventListener('DOMContentLoaded', () => {
             const shouldShow = loginPasswordInput.type === 'password';
             loginPasswordInput.type = shouldShow ? 'text' : 'password';
             btnToggleLoginPassword.innerHTML = `<i class="fa-solid ${shouldShow ? 'fa-eye-slash' : 'fa-eye'}"></i>`;
+        });
+    }
+
+    if (btnResetLoginPassword) {
+        btnResetLoginPassword.addEventListener('click', async () => {
+            const username = (loginUsernameInput?.value || '').trim();
+            if (!username) {
+                if (loginError) loginError.textContent = 'กรุณากรอกรหัสพนักงานก่อนรีเซ็ตรหัสผ่าน';
+                if (loginUsernameInput) loginUsernameInput.focus();
+                return;
+            }
+
+            if (!window.TransportApi || typeof window.TransportApi.resetPassword !== 'function') {
+                if (isStaticHostedApp) {
+                    if (loginPasswordInput) {
+                        loginPasswordInput.value = username;
+                        loginPasswordInput.focus();
+                    }
+                    if (loginError) {
+                        loginError.textContent = 'เว็บบน GitHub ตั้งรหัสผ่านเป็นรหัสพนักงานให้แล้ว';
+                        loginError.classList.add('is-success');
+                    }
+                    return;
+                }
+                if (loginError) loginError.textContent = 'ยังเชื่อมต่อระบบรีเซ็ตรหัสผ่านไม่ได้';
+                return;
+            }
+
+            const defaultHtml = btnResetLoginPassword.innerHTML;
+            btnResetLoginPassword.disabled = true;
+            btnResetLoginPassword.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังรีเซ็ต';
+
+            try {
+                if (isStaticHostedApp) {
+                    if (loginPasswordInput) {
+                        loginPasswordInput.value = username;
+                        loginPasswordInput.focus();
+                    }
+                    if (loginError) {
+                        loginError.textContent = 'เว็บบน GitHub ตั้งรหัสผ่านเป็นรหัสพนักงานให้แล้ว';
+                        loginError.classList.add('is-success');
+                    }
+                    return;
+                }
+                await window.TransportApi.resetPassword({ username });
+                if (loginPasswordInput) {
+                    loginPasswordInput.value = username;
+                    loginPasswordInput.focus();
+                }
+                if (loginError) {
+                    loginError.textContent = 'รีเซ็ตรหัสผ่านแล้ว ระบบตั้งรหัสผ่านเป็นรหัสพนักงาน';
+                    loginError.classList.add('is-success');
+                }
+            } catch (error) {
+                if (loginError) {
+                    loginError.textContent = error.message || 'รีเซ็ตรหัสผ่านไม่สำเร็จ';
+                    loginError.classList.remove('is-success');
+                }
+            } finally {
+                btnResetLoginPassword.disabled = false;
+                btnResetLoginPassword.innerHTML = defaultHtml;
+            }
         });
     }
 
@@ -1195,6 +1300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const employeePermissionIdInput = document.getElementById('employee-permission-id');
     const employeePermissionNameInput = document.getElementById('employee-permission-name');
     const employeePermissionRoleSelect = document.getElementById('employee-permission-role');
+    const employeePermissionPasswordInput = document.getElementById('employee-permission-password');
     const employeePermissionOptions = document.getElementById('employee-permission-options');
     const employeePermissionSearchResults = document.getElementById('employee-permission-search-results');
     const employeePermissionList = document.getElementById('employee-permission-list');
@@ -1546,6 +1652,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const assignments = loadEmployeeRolePermissions();
+            const passwordValue = employeePermissionPasswordInput?.value.trim() || '';
+            if (passwordValue && window.TransportApi && typeof window.TransportApi.createUser === 'function') {
+                try {
+                    await window.TransportApi.createUser({
+                        employeeId,
+                        name: employeePermissionNameInput?.value.trim() || employeeId,
+                        password: passwordValue
+                    });
+                    permissionEmployeeCache = [];
+                    if (employeePermissionPasswordInput) employeePermissionPasswordInput.value = '';
+                } catch (error) {
+                    alert(error.message || 'บันทึกรหัสผ่านไม่สำเร็จ');
+                    return;
+                }
+            }
             const assignment = {
                 employeeId,
                 name: employeePermissionNameInput?.value.trim() || employeeId,

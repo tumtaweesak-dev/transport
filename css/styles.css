@@ -2369,14 +2369,18 @@ h1, h2, h3, h4, h5, h6 {
     place-items: center;
     padding: 24px;
     background:
-        linear-gradient(145deg, rgba(98, 100, 167, 0.18), transparent 34%),
-        linear-gradient(315deg, rgba(91, 95, 199, 0.10), transparent 34%),
-        var(--bg-color);
+        linear-gradient(90deg, rgba(12, 18, 31, 0.58), rgba(12, 18, 31, 0.28) 42%, rgba(12, 18, 31, 0.48)),
+        linear-gradient(180deg, rgba(12, 18, 31, 0.10), rgba(12, 18, 31, 0.62)),
+        url('../assets/login-background.png') center / cover no-repeat;
 }
 
 .login-panel {
     width: min(440px, 100%);
     padding: 30px;
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.34);
+    backdrop-filter: blur(14px);
 }
 
 .login-brand {
@@ -2476,9 +2480,30 @@ h1, h2, h3, h4, h5, h6 {
     font-size: 0.86rem;
 }
 
+.login-error.is-success {
+    color: var(--accent-green);
+}
+
 .login-submit {
     width: 100%;
     justify-content: center;
+}
+
+.login-reset-password {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    border: 0;
+    background: transparent;
+    color: var(--accent-secondary);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.login-reset-password:hover {
+    color: var(--text-primary);
 }
 
 .company-gate {

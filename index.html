@@ -63,6 +63,9 @@
                 <button type="submit" class="btn btn-primary btn-lg login-submit">
                     <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
                 </button>
+                <button type="button" class="login-reset-password" id="btn-reset-login-password">
+                    <i class="fa-solid fa-key"></i> รีเซ็ตรหัสผ่าน
+                </button>
             </form>
         </div>
     </section>
@@ -1486,6 +1489,12 @@
                                     <div class="input-group">
                                         <label>ชื่อพนักงาน</label>
                                         <input type="text" id="employee-permission-name" placeholder="ค้นหาชื่อจากฐานข้อมูล">
+                                    </div>
+                                </div>
+                                <div class="form-row mt-3">
+                                    <div class="input-group" style="width: calc(50% - 8px);">
+                                        <label>รหัสผ่านสำหรับสร้าง/เปลี่ยนรหัส</label>
+                                        <input type="password" id="employee-permission-password" placeholder="เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยนรหัสผ่าน" autocomplete="new-password">
                                     </div>
                                 </div>
                                 <datalist id="employee-permission-options"></datalist>

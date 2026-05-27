@@ -23,6 +23,9 @@
         login(data) {
             return request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) });
         },
+        resetPassword(data) {
+            return request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(data) });
+        },
         createUser(data) {
             return request('/api/users', { method: 'POST', body: JSON.stringify(data) });
         },
