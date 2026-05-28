@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnToggleLoginPassword = document.getElementById('btn-toggle-login-password');
     const defaultLoginButtonHtml = loginSubmitButton ? loginSubmitButton.innerHTML : '';
     const isStaticHostedApp = window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:';
+    const supabaseClient = window.supabase && window.TMS_SUPABASE_URL && window.TMS_SUPABASE_ANON_KEY
+        ? window.supabase.createClient(window.TMS_SUPABASE_URL, window.TMS_SUPABASE_ANON_KEY)
+        : null;
     const MENU_PERMISSION_KEY = 'tms_menu_permissions_v1';
     const APPROVAL_MENU_CONFIG = [
         { id: 'manager-approval', label: 'อนุมัติโดยหัวหน้า', icon: 'fa-user-tie' },
@@ -78,6 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function clearLoginSession() {
         localStorage.removeItem(LOGIN_SESSION_KEY);
+        if (supabaseClient) {
+            supabaseClient.auth.signOut().catch((error) => console.warn('Supabase sign out skipped:', error.message));
+        }
         if (loginPasswordInput) loginPasswordInput.value = '';
         applyAuthState();
     }
@@ -97,6 +103,45 @@ document.addEventListener('DOMContentLoaded', () => {
             loginMode: 'static-github-pages',
             loginAt: new Date().toISOString()
         });
+    }
+
+    function getSupabaseEmail(username) {
+        const value = String(username || '').trim();
+        return value.includes('@') ? value : `${value}@tms.local`;
+    }
+
+    async function trySupabaseLogin(username, password) {
+        if (!supabaseClient) return null;
+
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: getSupabaseEmail(username),
+            password
+        });
+        if (error) throw error;
+
+        const authUser = data?.user;
+        let profile = null;
+        if (authUser) {
+            const profileResult = await supabaseClient
+                .from('employee_profiles')
+                .select('employee_code, full_name, branch, department, position, role_name')
+                .eq('employee_code', username)
+                .maybeSingle();
+            if (!profileResult.error) profile = profileResult.data;
+        }
+
+        return {
+            auth: 'employee-code',
+            username: profile?.employee_code || username,
+            displayName: profile?.full_name || profile?.employee_code || username,
+            company: null,
+            branch: profile?.branch || null,
+            department: profile?.department || null,
+            position: profile?.position || null,
+            roleName: profile?.role_name || null,
+            loginMode: 'supabase-auth',
+            loginAt: new Date().toISOString()
+        };
     }
 
     function markCompanySelected(company) {
@@ -176,11 +221,65 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!window.TransportApi || typeof window.TransportApi.login !== 'function') {
+                if (canUseStaticLoginFallback(username, password)) {
+                    saveStaticLoginSession(username);
+                    if (loginError) {
+                        loginError.textContent = '';
+                        loginError.classList.remove('is-success');
+                    }
+                    if (loginPasswordInput) loginPasswordInput.value = '';
+                    applyAuthState();
+                    return;
+                }
                 if (loginError) {
                     loginError.textContent = 'ยังเชื่อมต่อระบบล็อกอินไม่ได้';
                     loginError.classList.remove('is-success');
                 }
                 return;
+            }
+
+            if (canUseStaticLoginFallback(username, password)) {
+                saveStaticLoginSession(username);
+                if (loginError) {
+                    loginError.textContent = '';
+                    loginError.classList.remove('is-success');
+                }
+                if (loginPasswordInput) loginPasswordInput.value = '';
+                applyAuthState();
+                return;
+            }
+
+            if (isStaticHostedApp && supabaseClient) {
+                if (loginSubmitButton) {
+                    loginSubmitButton.disabled = true;
+                    loginSubmitButton.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตรวจสอบ';
+                }
+                try {
+                    const session = await trySupabaseLogin(username, password);
+                    if (session) {
+                        saveLoginSession(session);
+                        if (loginError) {
+                            loginError.textContent = '';
+                            loginError.classList.remove('is-success');
+                        }
+                        if (loginPasswordInput) loginPasswordInput.value = '';
+                        applyAuthState();
+                        return;
+                    }
+                } catch (error) {
+                    if (!canUseStaticLoginFallback(username, password)) {
+                        if (loginError) {
+                            loginError.textContent = error.message || 'รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง';
+                            loginError.classList.remove('is-success');
+                        }
+                        return;
+                    }
+                } finally {
+                    if (loginSubmitButton) {
+                        loginSubmitButton.disabled = false;
+                        loginSubmitButton.innerHTML = defaultLoginButtonHtml;
+                    }
+                }
             }
 
             if (loginSubmitButton) {

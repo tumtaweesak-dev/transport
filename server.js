@@ -24,10 +24,30 @@ const aiGptApp = require('./AI-GPT-App/server');
 
 const app = express();
 const port = process.env.PORT || 3000;
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,https://tumtaweesak-dev.github.io')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Vary', 'Origin');
+  }
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  return next();
+});
 
 app.use(express.static(__dirname));
 app.use('/ai-gpt-app', aiGptApp);
 app.use(express.json({ limit: '25mb' }));
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ ok: true, service: 'tms-pro-api', time: new Date().toISOString() });
+});
 
 app.use('/api', createCacheRouter({ pgPool, redisClient }));
 app.use('/api', createAuthRouter({ pgPool, mysqlPool }));

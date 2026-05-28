@@ -1,6 +1,18 @@
 (function () {
+    const DEFAULT_API_BASE_URL = '';
+    const configuredApiBaseUrl = String(
+        window.TMS_API_BASE_URL
+        || localStorage.getItem('tms_api_base_url')
+        || DEFAULT_API_BASE_URL
+    ).replace(/\/+$/, '');
+
+    function getApiUrl(path) {
+        if (/^https?:\/\//i.test(path)) return path;
+        return `${configuredApiBaseUrl}${path}`;
+    }
+
     async function request(path, options = {}) {
-        const res = await fetch(path, {
+        const res = await fetch(getApiUrl(path), {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
@@ -19,6 +31,7 @@
         return payload;
     }
 
+    window.TransportApiBaseUrl = configuredApiBaseUrl;
     window.TransportApi = {
         login(data) {
             return request('/api/auth/login', { method: 'POST', body: JSON.stringify(data) });
