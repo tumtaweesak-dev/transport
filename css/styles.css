@@ -176,10 +176,11 @@ h1, h2, h3, h4, h5, h6 {
 /* === QR Popover Styling (Near Button) === */
 .qr-popover-box {
     position: absolute;
-    top: 50%;
-    left: calc(100% + 20px);
-    transform: translateY(-50%);
-    width: 260px;
+    top: calc(100% + 10px);
+    right: 0;
+    transform: none;
+    width: min(260px, calc(100vw - 32px));
+    max-width: 100%;
     background: #1c1917;
     border: 2px solid var(--accent-primary);
     border-radius: 16px;
@@ -196,20 +197,19 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @keyframes popover-in {
-    from { transform: translateY(-50%) scale(0.8) translateX(-10px); opacity: 0; }
-    to { transform: translateY(-50%) scale(1) translateX(0); opacity: 1; }
+    from { transform: translateY(-8px) scale(0.96); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .popover-arrow {
     position: absolute;
-    top: 50%;
-    left: -10px;
-    transform: translateY(-50%);
+    top: -10px;
+    right: 26px;
     width: 0;
     height: 0;
-    border-top: 10px solid transparent;
-    border-bottom: 10px solid transparent;
-    border-right: 10px solid var(--accent-primary);
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 10px solid var(--accent-primary);
 }
 
 .popover-content {
@@ -224,9 +224,11 @@ h1, h2, h3, h4, h5, h6 {
     justify-content: center;
     align-items: center;
     margin: 5px 0;
+    overflow: hidden;
 }
 
 .qr-frame canvas, .qr-frame img {
+    width: min(180px, 100%) !important;
     max-width: 100%;
     height: auto !important;
 }
