@@ -52,6 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'permission-management', label: 'จัดการสิทธิ์', icon: 'fa-shield-halved' }
     ];
     const PERMISSION_MENU_IDS = PERMISSION_MENU_CONFIG.map((item) => item.id);
+    const DEFAULT_EMPLOYEE_ROLE_ID = 'role-employee';
+    const DEFAULT_EMPLOYEE_MENU_IDS = ['dashboard', 'travel-plan', 'travel-status', 'car-booking', 'car-document-status'];
 
     function getLoginSession() {
         try {
@@ -92,16 +94,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveStaticLoginSession(username) {
-        saveLoginSession({
+        const session = {
             auth: 'employee-code',
             username,
             displayName: username,
             company: null,
             branch: null,
             department: null,
+            roleName: 'พนักงาน',
             loginMode: 'static-github-pages',
             loginAt: new Date().toISOString()
-        });
+        };
+        saveLoginSession(session);
+        ensureDefaultEmployeePermission(session);
+    }
+
+    function ensureDefaultEmployeePermission(session) {
+        const employeeId = normalizeEmployeeCode(session?.username);
+        if (!employeeId) return;
+
+        const roles = loadPermissionRoles();
+        if (!roles.some((role) => role.id === DEFAULT_EMPLOYEE_ROLE_ID)) {
+            roles.unshift({
+                id: DEFAULT_EMPLOYEE_ROLE_ID,
+                name: 'พนักงาน',
+                menus: [...DEFAULT_EMPLOYEE_MENU_IDS],
+                updatedAt: new Date().toISOString()
+            });
+            savePermissionRoles(roles);
+        }
+
+        const assignments = loadEmployeeRolePermissions();
+        if (assignments[employeeId]) return;
+
+        assignments[employeeId] = {
+            employeeId,
+            name: session.displayName || employeeId,
+            roleId: DEFAULT_EMPLOYEE_ROLE_ID,
+            roleName: 'พนักงาน',
+            menus: [...DEFAULT_EMPLOYEE_MENU_IDS],
+            updatedAt: new Date().toISOString()
+        };
+        saveEmployeeRolePermissions(assignments);
     }
 
     function getSupabaseEmail(username) {
@@ -257,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const session = await trySupabaseLogin(username, password);
                     if (session) {
                         saveLoginSession(session);
+                        ensureDefaultEmployeePermission(session);
                         if (loginError) {
                             loginError.textContent = '';
                             loginError.classList.remove('is-success');
@@ -290,15 +325,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const payload = await window.TransportApi.login({ username, password });
                 const user = payload.user || {};
 
-                saveLoginSession({
+                const nextSession = {
                     auth: 'employee-code',
                     username: user.employeeCode || username,
                     displayName: user.name || user.employeeCode || username,
                     company: user.company || null,
                     branch: user.branch || null,
                     department: user.department || null,
+                    roleName: user.roleName || 'พนักงาน',
                     loginAt: payload.loginAt || new Date().toISOString()
-                });
+                };
+                saveLoginSession(nextSession);
+                ensureDefaultEmployeePermission(nextSession);
 
                 if (loginError) {
                     loginError.textContent = '';
@@ -484,6 +522,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getDefaultPermissionRoles() {
         return [
+            {
+                id: DEFAULT_EMPLOYEE_ROLE_ID,
+                name: 'พนักงาน',
+                menus: [...DEFAULT_EMPLOYEE_MENU_IDS],
+                updatedAt: new Date().toISOString()
+            },
             {
                 id: 'role-admin',
                 name: 'ผู้ดูแลระบบ',
