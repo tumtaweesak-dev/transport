@@ -186,7 +186,7 @@
                         </button>
                         <button class="nav-btn" data-target="maintenance">
                             <i class="fa-solid fa-wrench"></i>
-                            ตารางซ่อมบำรุง (Maintenance)
+                            กำหนดรอบการต่ออายุ
                         </button>
                         <button class="nav-btn" data-target="fuel">
                             <i class="fa-solid fa-gas-pump"></i>
@@ -203,16 +203,6 @@
                     </div>
                 </div>
 
-                <!-- 5. AI Assistant -->
-                <div class="nav-module">
-                    <div class="nav-module-title"><span><i class="fa-solid fa-wand-magic-sparkles module-icon"></i> 5. ผู้ช่วย AI (AI Assistant)</span> <i class="fa-solid fa-chevron-down chevron"></i></div>
-                    <div class="nav-sub-menu">
-                        <button class="nav-btn" data-target="ai-assistant">
-                            <i class="fa-solid fa-robot"></i>
-                            ผู้ช่วย AI (GPT)
-                        </button>
-                    </div>
-                </div>
             </nav>
         </aside>
 
@@ -809,7 +799,7 @@
 
                     <div id="travel-status-live-tracking-slot" class="travel-status-live-tracking-slot mb-4" hidden></div>
 
-                    <div class="table-container">
+                    <div class="table-container mt-4">
                         <table class="modern-table">
                             <thead>
                                 <tr>
@@ -827,6 +817,7 @@
                             </tbody>
                         </table>
                     </div>
+
                 </section>
 
                 <!-- Flow: Manager Approval -->
@@ -849,6 +840,7 @@
                             </tbody>
                         </table>
                     </div>
+
                 </section>
 
                 <!-- Flow: HR Approval -->
@@ -1350,74 +1342,6 @@
                             </div>
                         </div>
 
-                        <!-- Part 3: Permissions Settings -->
-                        <div class="glass-panel-inner p-4">
-                            <div class="card-header border-b pb-2 mb-4" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                                <h3><i class="fa-solid fa-shield-halved text-accent"></i> ส่วนที่ 3: ตั้งค่าสิทธิ์การใช้งาน (Permissions)</h3>
-                                <p class="text-sm text-secondary" style="margin-top: 5px;">กำหนดสิทธิ์เมนูอนุมัติรายรหัสพนักงาน คนที่ไม่มีสิทธิ์จะไม่เห็นเมนูอนุมัติ</p>
-                            </div>
-
-                            <form class="dynamic-form permission-form" id="form-menu-permission" onsubmit="event.preventDefault();">
-                                <div class="form-row split-row">
-                                    <div class="input-group">
-                                        <label>รหัสพนักงาน</label>
-                                        <input type="text" id="permission-employee-id" placeholder="เช่น 12022030801" required>
-                                    </div>
-                                    <div class="input-group">
-                                        <label>ชื่อผู้ใช้งาน</label>
-                                        <input type="text" id="permission-employee-name" placeholder="ใส่ชื่อเพื่อให้อ่านง่าย">
-                                    </div>
-                                </div>
-
-                                <div class="permission-menu-grid mt-3">
-                                    <label class="permission-toggle">
-                                        <input type="checkbox" value="manager-approval">
-                                        <span><i class="fa-solid fa-user-tie"></i> อนุมัติโดยหัวหน้า</span>
-                                    </label>
-                                    <label class="permission-toggle">
-                                        <input type="checkbox" value="hr-approval">
-                                        <span><i class="fa-solid fa-users-gear"></i> ตรวจสอบโดย HR</span>
-                                    </label>
-                                    <label class="permission-toggle">
-                                        <input type="checkbox" value="md-approval">
-                                        <span><i class="fa-solid fa-user-check"></i> อนุมัติโดย MD</span>
-                                    </label>
-                                    <label class="permission-toggle">
-                                        <input type="checkbox" value="accounting-approval">
-                                        <span><i class="fa-solid fa-file-invoice-dollar"></i> พนักงานบัญชีทำจ่าย</span>
-                                    </label>
-                                </div>
-
-                                <div class="form-actions mt-4 text-right" style="text-align: right;">
-                                    <button type="button" class="btn btn-secondary btn-sm" id="btn-fill-current-permission">
-                                        <i class="fa-solid fa-user-check"></i> ใช้รหัสผู้ที่ล็อกอินอยู่
-                                    </button>
-                                    <button type="reset" class="btn btn-secondary btn-sm">
-                                        <i class="fa-solid fa-eraser"></i> ล้างฟอร์ม
-                                    </button>
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกสิทธิ์เมนู
-                                    </button>
-                                </div>
-                            </form>
-
-                            <div class="table-container mt-5">
-                                <h4 class="mb-3">รายการสิทธิ์เมนูอนุมัติ</h4>
-                                <table class="modern-table">
-                                    <thead>
-                                        <tr>
-                                            <th>รหัสพนักงาน</th>
-                                            <th>ชื่อ</th>
-                                            <th>เมนูที่มองเห็น</th>
-                                            <th>จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="menu-permission-list">
-                                        <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ยังไม่มีการตั้งค่าสิทธิ์</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </div>
                 </section>
 
@@ -1912,13 +1836,14 @@
                 </section>
 
                 <section id="maintenance" class="view-section glass-panel">
-                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-wrench text-accent"></i> การบำรุงรักษายานพาหนะ (Maintenance Scheduling)</h3>
+                    <h3 class="section-subtitle mb-4"><i class="fa-solid fa-wrench text-accent"></i> กำหนดรอบการต่ออายุ</h3>
                     <div class="flex-between mb-4">
-                        <p class="text-secondary">ติดตามและกำหนดการซ่อมบำรุงของฝูงรถ</p>
+                        <p class="text-secondary">ติดตามและกำหนดรอบการต่ออายุเอกสารหรือรายการที่ต้องต่ออายุ</p>
                         <button class="btn btn-primary btn-sm" id="btn-add-maintenance"><i class="fa-solid fa-plus"></i> บันทึกรายการใหม่</button>
                     </div>
 
-                    <div class="table-container">
+                    <h4 class="mb-3"><i class="fa-solid fa-screwdriver-wrench text-accent"></i> ตารางซ่อมบำรุง (Maintenance)</h4>
+                    <div class="table-container mb-5">
                         <table class="modern-table">
                             <thead>
                                 <tr>
@@ -1944,6 +1869,74 @@
                                     <td>ตรวจเช็คระบบเบรก</td>
                                     <td>10/01/2026</td>
                                     <td>35,000 กม. / 10/07/2026</td>
+                                    <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">ใกล้ถึงกำหนด</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4 class="mb-3"><i class="fa-solid fa-file-shield text-accent"></i> 1. ตารางต่อภาษี/พรบ</h4>
+                    <div class="table-container mb-5">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>ทะเบียนรถ</th>
+                                    <th>ประเภทรายการ</th>
+                                    <th>วันหมดอายุ</th>
+                                    <th>แจ้งเตือนล่วงหน้า</th>
+                                    <th>สถานะ</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>6W-8492</td>
+                                    <td>ภาษีรถยนต์ / พรบ.</td>
+                                    <td>30/09/2026</td>
+                                    <td>30 วัน</td>
+                                    <td><span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">ปกติ</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                                <tr>
+                                    <td>4W-1122</td>
+                                    <td>พรบ.</td>
+                                    <td>15/06/2026</td>
+                                    <td>45 วัน</td>
+                                    <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">ใกล้ถึงกำหนด</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h4 class="mb-3"><i class="fa-solid fa-car-burst text-accent"></i> 2. ตารางต่อประกันอุบัติเหตุ</h4>
+                    <div class="table-container">
+                        <table class="modern-table">
+                            <thead>
+                                <tr>
+                                    <th>ทะเบียนรถ</th>
+                                    <th>บริษัทประกัน</th>
+                                    <th>เลขกรมธรรม์</th>
+                                    <th>วันหมดอายุ</th>
+                                    <th>สถานะ</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>6W-8492</td>
+                                    <td>ระบุภายหลัง</td>
+                                    <td>-</td>
+                                    <td>31/12/2026</td>
+                                    <td><span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">ปกติ</span></td>
+                                    <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
+                                </tr>
+                                <tr>
+                                    <td>4W-1122</td>
+                                    <td>ระบุภายหลัง</td>
+                                    <td>-</td>
+                                    <td>20/07/2026</td>
                                     <td><span class="badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b;">ใกล้ถึงกำหนด</span></td>
                                     <td><button class="btn-icon text-accent"><i class="fa-solid fa-pen-to-square"></i></button></td>
                                 </tr>

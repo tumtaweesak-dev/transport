@@ -46,11 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'car-document-approval', label: 'อนุมัติเอกสารจัดรถ', icon: 'fa-file-signature' },
         { id: 'car-document-status', label: 'สถานะเอกสารจัดรถ', icon: 'fa-chart-simple' },
         { id: 'admin-settings', label: 'ข้อมูลรถ', icon: 'fa-truck' },
-        { id: 'maintenance', label: 'ตารางซ่อมบำรุง', icon: 'fa-wrench' },
+        { id: 'maintenance', label: 'กำหนดรอบการต่ออายุ', icon: 'fa-wrench' },
         { id: 'fuel', label: 'จัดการค่าน้ำมัน', icon: 'fa-gas-pump' },
         { id: 'company-settings', label: 'ข้อมูลบริษัท', icon: 'fa-building' },
-        { id: 'permission-management', label: 'จัดการสิทธิ์', icon: 'fa-shield-halved' },
-        { id: 'ai-assistant', label: 'ผู้ช่วย AI', icon: 'fa-robot' }
+        { id: 'permission-management', label: 'จัดการสิทธิ์', icon: 'fa-shield-halved' }
     ];
     const PERMISSION_MENU_IDS = PERMISSION_MENU_CONFIG.map((item) => item.id);
 
@@ -455,15 +454,14 @@ document.addEventListener('DOMContentLoaded', () => {
         'car-document-status': { text: 'สถานะเอกสาร', icon: 'fa-chart-simple' },
         'import-orders': { text: 'นำเข้าออเดอร์ (Import Orders)', icon: 'fa-file-import' },
         'fleet-management': { text: 'ตั้งค่าระบบ (System Settings)', icon: 'fa-gear' },
-        'maintenance-schedule': { text: 'ตารางซ่อมบำรุง (Maintenance Schedule)', icon: 'fa-calendar-alt' },
+        'maintenance-schedule': { text: 'กำหนดรอบการต่ออายุ', icon: 'fa-calendar-alt' },
         'fuel-log': { text: 'บันทึกค่าน้ำมัน (Fuel Log)', icon: 'fa-gas-pump' },
         'shipment-tracking': { text: 'ติดตามสถานะ (Shipment Tracking)', icon: 'fa-satellite-dish' },
         'exceptions-handling': { text: 'จัดการปัญหา (Exceptions Handling)', icon: 'fa-triangle-exclamation' },
-        'maintenance': { text: 'ตารางซ่อมบำรุง (Maintenance)', icon: 'fa-wrench' },
+        'maintenance': { text: 'กำหนดรอบการต่ออายุ', icon: 'fa-wrench' },
         'fuel': { text: 'จัดการค่าน้ำมัน (Fuel Management)', icon: 'fa-gas-pump' },
         'company-settings': { text: 'ข้อมูลบริษัท (Company)', icon: 'fa-building' },
-        'permission-management': { text: 'จัดการสิทธิ์ (Permissions)', icon: 'fa-shield-halved' },
-        'ai-assistant': { text: 'ผู้ช่วย AI (GPT)', icon: 'fa-robot' }
+        'permission-management': { text: 'จัดการสิทธิ์ (Permissions)', icon: 'fa-shield-halved' }
     };
 
     function normalizeEmployeeCode(value) {
@@ -7349,7 +7347,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddMaintenance = document.getElementById('btn-add-maintenance');
     if (btnAddMaintenance) {
         btnAddMaintenance.addEventListener('click', () => {
-            alert('เปิดฟอร์มบันทึกการซ่อมบำรุง (Maintenance Form)... \n[Feature logic to be connected with DB]');
+            alert('เปิดฟอร์มกำหนดรอบการต่ออายุ... \n[Feature logic to be connected with DB]');
         });
     }
 
