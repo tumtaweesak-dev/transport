@@ -1,5 +1,7 @@
 (function () {
-    const DEFAULT_API_BASE_URL = '';
+    const DEFAULT_API_BASE_URL = window.location.hostname.endsWith('github.io')
+        ? 'https://transport-gdf8.onrender.com'
+        : '';
     const configuredApiBaseUrl = String(
         window.TMS_API_BASE_URL
         || localStorage.getItem('tms_api_base_url')
