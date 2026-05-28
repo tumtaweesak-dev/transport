@@ -65,13 +65,22 @@ function mapMysqlEmployee(row) {
 
 async function findEditableEmployeeByCode(mysqlPool, employeeCode) {
   const [rows] = await mysqlPool.execute(
-    `SELECT employee_id, name, branch, department, position, password_hash
+    `SELECT employee_id, name, branch, department, position, password_hash, NULL AS role_name
      FROM editable_employees
      WHERE employee_id = ?
      LIMIT 1`,
     [employeeCode]
   );
   return rows[0] || null;
+}
+
+async function findEditableEmployeeByCodeSafe(mysqlPool, employeeCode) {
+  try {
+    return await findEditableEmployeeByCode(mysqlPool, employeeCode);
+  } catch (error) {
+    console.warn('Editable employee lookup skipped, using Sitecontrol employee table:', error.message);
+    return null;
+  }
 }
 
 module.exports = function createAuthRouter({ pgPool, mysqlPool }) {
@@ -85,7 +94,7 @@ module.exports = function createAuthRouter({ pgPool, mysqlPool }) {
       return res.status(400).json({ error: 'กรุณากรอกรหัสพนักงานและรหัสผ่าน' });
     }
 
-    const editableEmployee = await findEditableEmployeeByCode(mysqlPool, username);
+    const editableEmployee = await findEditableEmployeeByCodeSafe(mysqlPool, username);
     let employee = editableEmployee ? mapMysqlEmployee(editableEmployee) : null;
 
     if (editableEmployee?.password_hash) {
@@ -113,6 +122,7 @@ module.exports = function createAuthRouter({ pgPool, mysqlPool }) {
         company: employee.company || null,
         branch: employee.branch || null,
         department: employee.department || null,
+        roleName: editableEmployee?.role_name || 'พนักงาน',
       },
     });
   }));
@@ -125,7 +135,7 @@ module.exports = function createAuthRouter({ pgPool, mysqlPool }) {
     }
 
     const employee = await findEmployeeByCode(pgPool, username);
-    const editableEmployee = await findEditableEmployeeByCode(mysqlPool, username);
+    const editableEmployee = await findEditableEmployeeByCodeSafe(mysqlPool, username);
     if (!employee && !editableEmployee) {
       return res.status(404).json({ error: 'ไม่พบรหัสพนักงานนี้ในฐานข้อมูล' });
     }
