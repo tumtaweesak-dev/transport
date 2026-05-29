@@ -150,6 +150,14 @@
         // Extract URL Parameters
         const urlParams = new URLSearchParams(window.location.search);
         const vid = urlParams.get('vid') || 'UNKNOWN';
+        const DEFAULT_API_BASE_URL = window.location.hostname.endsWith('github.io')
+            ? 'https://transport-gdf8.onrender.com'
+            : '';
+        const API_BASE_URL = String(window.TMS_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/+$/, '');
+
+        function getApiUrl(path) {
+            return `${API_BASE_URL}${path}`;
+        }
         const plate = urlParams.get('plate') || 'ไม่ระบุทะเบียน';
 
         document.getElementById('vehiclePlate').textContent = plate;
@@ -184,7 +192,7 @@
 
         async function sendGPSData(lat, lng) {
             try {
-                const response = await fetch('/api/gps', {
+                const response = await fetch(getApiUrl('/api/gps'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ vid, lat, lng })

@@ -1719,6 +1719,18 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPermissionRoleMenuGrid(Array.isArray(role.menus) ? role.menus : []);
     }
 
+    function getCurrentPermissionRoleMenus() {
+        const currentRoleId = permissionRoleIdInput?.value || '';
+        if (currentRoleId) {
+            const currentRole = loadPermissionRoles().find((role) => role.id === currentRoleId);
+            if (currentRole) return Array.isArray(currentRole.menus) ? currentRole.menus : [];
+        }
+        return getRoleMenuCheckboxes()
+            .filter((checkbox) => checkbox.checked)
+            .map((checkbox) => checkbox.value)
+            .filter((menuId) => PERMISSION_MENU_IDS.includes(menuId));
+    }
+
     function renderPermissionRoleSelect() {
         if (!employeePermissionRoleSelect) return;
         const roles = loadPermissionRoles();
@@ -2051,7 +2063,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderPermissionManagement() {
-        renderPermissionRoleMenuGrid(getRoleMenuCheckboxes().filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value));
+        renderPermissionRoleMenuGrid(getCurrentPermissionRoleMenus());
         renderPermissionRoleList();
         renderPermissionRoleSelect();
         renderEmployeePermissionList();
@@ -2087,7 +2099,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (formPermissionRole) {
         renderPermissionRoleMenuGrid();
-        formPermissionRole.addEventListener('submit', () => {
+        formPermissionRole.addEventListener('submit', (event) => {
+            event.preventDefault();
             const name = permissionRoleNameInput?.value.trim() || '';
             if (!name) {
                 alert('กรุณาระบุชื่อสิทธิ์');
@@ -2196,7 +2209,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (formEmployeePermission) {
-        formEmployeePermission.addEventListener('submit', async () => {
+        formEmployeePermission.addEventListener('submit', async (event) => {
+            event.preventDefault();
             const employeeId = normalizeEmployeeCode(employeePermissionIdInput?.value);
             if (!employeeId) {
                 alert('กรุณาระบุรหัสพนักงาน');
@@ -2239,13 +2253,22 @@ document.addEventListener('DOMContentLoaded', () => {
             saveEmployeeRolePermissions(assignments);
             if (window.TransportApi && typeof window.TransportApi.saveEmployeeRolePermission === 'function') {
                 try {
-                    await window.TransportApi.saveEmployeeRolePermission(employeeId, assignment);
+                    const savedAssignment = await window.TransportApi.saveEmployeeRolePermission(employeeId, assignment);
+                    const normalizedSaved = employeeRoleRowsToMap([savedAssignment])[employeeId];
+                    if (normalizedSaved) {
+                        assignments[employeeId] = normalizedSaved;
+                        saveEmployeeRolePermissions(assignments);
+                    }
                 } catch (error) {
-                    console.warn('Employee role permission saved locally only:', error.message);
+                    alert(error.message || 'บันทึกสิทธิ์ลงฐานข้อมูลไม่สำเร็จ');
+                    return;
                 }
             }
             await mirrorAssignmentToApprovalPermissions(assignment);
             renderPermissionManagement();
+            if (employeePermissionIdInput) employeePermissionIdInput.value = employeeId;
+            if (employeePermissionNameInput) employeePermissionNameInput.value = assignment.name || employeeId;
+            if (employeePermissionRoleSelect) employeePermissionRoleSelect.value = assignment.roleId || '';
             renderMenuPermissionList();
             applyMenuPermissions();
             alert(`บันทึกสิทธิ์ของ ${employeeId} แล้ว`);
@@ -3456,10 +3479,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     ensureDeliveryNoteNo();
     renderDeliveryNoteItems();
-    if (bookingTypeSelect) {
-        bookingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
     // 3. Car Arrangement: Dynamic Packing List
     const btnAddPacking = document.getElementById('btn-add-packing');
     const packingListBody = document.getElementById('packing-list-body');
@@ -4469,6 +4488,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let travelerMarker = null;
     let driverMarker = null;
     let liveTripPath = null;
+    let activeLiveTrackingVid = '';
+    let liveGpsPollingInterval = null;
+    let lastLiveGpsUpdateAt = '';
     let mockTravelData = {
         lat: 13.7801, // Start at HQ
         lng: 100.5746,
@@ -4480,7 +4502,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const mapDiv = document.getElementById('gps-live-map');
         if (mapDiv && !gpsLiveMap && typeof L !== 'undefined') {
             gpsLiveMap = L.map('gps-live-map', { zoomControl: false }).setView([13.7801, 100.5746], 12);
-            L.tileLayer('http://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 subdomains: ['0', '1', '2', '3']
             }).addTo(gpsLiveMap);
@@ -4501,6 +4523,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getLiveTrackingVid(request = selectedTravelStatusRequest) {
+        const requestNo = getTravelRequestNo(request);
+        return requestNo && requestNo !== '-' ? requestNo : '';
+    }
+
+    function getLiveTrackingPlate(request = selectedTravelStatusRequest) {
+        return request?.vehicle_plate || getLiveTrackingVid(request) || 'TMS';
+    }
+
+    function buildMobileTrackerUrl(request = selectedTravelStatusRequest, role = 'traveler') {
+        const url = new URL('driver-tracker.html', window.location.href);
+        const vid = getLiveTrackingVid(request) || `TRIP-${Date.now()}`;
+        url.searchParams.set('vid', vid);
+        url.searchParams.set('plate', getLiveTrackingPlate(request));
+        url.searchParams.set('role', role);
+        return url.href;
+    }
+
+    function setGpsStatus(type, isOnline, label) {
+        const isTraveler = type === 'traveler';
+        const statusEl = isTraveler ? travelerGpsStatus : driverGpsStatus;
+        const card = document.querySelector(isTraveler ? '.traveler-card' : '.driver-card');
+        if (card) card.classList.toggle('online', Boolean(isOnline));
+        if (statusEl) {
+            const text = statusEl.querySelector('.badge-text');
+            if (text) text.textContent = label || (isOnline ? 'Live System Online' : 'รอการเชื่อมต่อ...');
+        }
+        if (isTraveler) travelerConnected = Boolean(isOnline);
+        else driverConnected = Boolean(isOnline);
+    }
+
+    function updateLiveGpsPoint(point) {
+        const lat = Number(point?.lat);
+        const lng = Number(point?.lng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        initGpsLiveMap();
+        const nextPos = [lat, lng];
+        setGpsStatus('traveler', true, 'รับพิกัดจากมือถือแล้ว');
+        setGpsStatus('driver', true, 'รับพิกัดจากมือถือแล้ว');
+        if (travelerCoordsEl) travelerCoordsEl.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        if (driverSpeedEl && point.speed != null) driverSpeedEl.textContent = Math.round(Number(point.speed) || 0);
+        if (travelerMarker) travelerMarker.setLatLng(nextPos);
+        if (driverMarker) driverMarker.setLatLng(nextPos);
+        if (gpsLiveMap) gpsLiveMap.panTo(nextPos);
+
+        const updateKey = point.updatedAt || `${lat},${lng}`;
+        if (updateKey !== lastLiveGpsUpdateAt) {
+            lastLiveGpsUpdateAt = updateKey;
+            addTerminalLog(`Mobile GPS: ${activeLiveTrackingVid} Lat ${lat.toFixed(5)} Lng ${lng.toFixed(5)}`, 'coord');
+        }
+        checkGpsReady();
+    }
+
+    async function pollLiveGpsOnce() {
+        if (!activeLiveTrackingVid || !window.TransportApi || typeof window.TransportApi.listGps !== 'function') return;
+        try {
+            const liveData = await window.TransportApi.listGps();
+            const point = liveData ? liveData[activeLiveTrackingVid] : null;
+            if (point) {
+                updateLiveGpsPoint(point);
+            } else if (!lastLiveGpsUpdateAt) {
+                addTerminalLog(`Waiting for mobile GPS from ${activeLiveTrackingVid}...`, 'init');
+            }
+        } catch (error) {
+            addTerminalLog(`GPS API unavailable: ${error.message}`, 'alert');
+        }
+    }
+
+    function startLiveGpsPolling(request = selectedTravelStatusRequest) {
+        const vid = getLiveTrackingVid(request);
+        if (!vid) return;
+        activeLiveTrackingVid = vid;
+        lastLiveGpsUpdateAt = '';
+        if (liveGpsPollingInterval) clearInterval(liveGpsPollingInterval);
+        pollLiveGpsOnce();
+        liveGpsPollingInterval = setInterval(pollLiveGpsOnce, 3000);
+    }
+
+    function stopLiveGpsPolling() {
+        if (liveGpsPollingInterval) {
+            clearInterval(liveGpsPollingInterval);
+            liveGpsPollingInterval = null;
+        }
+    }
+
     // QR Sync Logic (Popover)
     if (btnOpenMobileSync) {
         btnOpenMobileSync.addEventListener('click', (e) => {
@@ -4509,9 +4617,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isActive = qrPopover.classList.contains('active');
                 
                 if (!isActive) {
-                    // Generate simulated trip URL
-                    const tripId = "TRIP-" + Math.floor(Math.random() * 9999);
-                    const syncUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?tripId=${tripId}&role=driver`;
+                    const syncUrl = buildMobileTrackerUrl(selectedTravelStatusRequest, 'traveler');
+                    activeLiveTrackingVid = getLiveTrackingVid(selectedTravelStatusRequest);
+                    startLiveGpsPolling(selectedTravelStatusRequest);
                     
                     if (syncUrlText) syncUrlText.textContent = syncUrl;
                     if (syncQrContainer) {
@@ -4625,46 +4733,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnToggleDriverGps) btnToggleDriverGps.addEventListener('click', () => toggleProfessionalGps('driver'));
 
     function checkGpsReady() {
-        btnStartJourney.disabled = !(travelerConnected && driverConnected && !journeyInterval);
+        btnStartJourney.disabled = !activeLiveTrackingVid || Boolean(journeyInterval);
     }
 
     function startJourney() {
         btnStartJourney.disabled = true;
         btnEndJourney.disabled = false;
         
-        addTerminalLog('CRITICAL: Dispatch sequence initiated.', 'init');
-        addTerminalLog('Tracking active. All systems nominal.', 'coord');
-        
-        let step = 0;
-        journeyInterval = setInterval(() => {
-            step++;
-            // Simulate jitter and movement towards destination
-            const jitterLat = (Math.random() - 0.5) * 0.0005;
-            const jitterLng = (Math.random() - 0.5) * 0.0005;
-            
-            mockTravelData.lat += 0.0008 + jitterLat; // Fast simulation
-            mockTravelData.lng += 0.0004 + jitterLng;
-            mockTravelData.speed = Math.floor(60 + Math.random() * 15);
-            
-            // Update UI Gauges
-            if (driverSpeedEl) driverSpeedEl.textContent = mockTravelData.speed;
-            if (travelerCoordsEl) travelerCoordsEl.textContent = `${mockTravelData.lat.toFixed(4)}, ${mockTravelData.lng.toFixed(4)}`;
-            
-            // Update Map
-            const newPos = [mockTravelData.lat, mockTravelData.lng];
-            if (travelerMarker) travelerMarker.setLatLng(newPos);
-            if (driverMarker) driverMarker.setLatLng([newPos[0] - 0.0002, newPos[1] - 0.0001]); // Slightly behind
-            
-            if (gpsLiveMap && step % 2 === 0) gpsLiveMap.panTo(newPos);
-            
-            if (step % 5 === 0) {
-                addTerminalLog(`Live Telemetry: Lat ${newPos[0].toFixed(5)} Lng ${newPos[1].toFixed(5)} Speed ${mockTravelData.speed}km/h`, 'coord');
-            }
-            
-            if (step >= 50) { // End of mock journey
-                endJourney();
-            }
-        }, 1500);
+        addTerminalLog(`Dispatch tracking started for ${activeLiveTrackingVid}. Scan QR on mobile and allow GPS.`, 'init');
+        startLiveGpsPolling(selectedTravelStatusRequest);
+        journeyInterval = liveGpsPollingInterval;
     }
 
     function endJourney(reason = 'MISSION SCAN COMPLETE: Vehicle arrived at destination.') {
@@ -4672,6 +4750,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(journeyInterval);
             journeyInterval = null;
         }
+        stopLiveGpsPolling();
         addTerminalLog(reason, 'init');
         btnEndJourney.disabled = true;
         checkGpsReady();
@@ -5119,6 +5198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         travelLiveTrackingPanel.hidden = !isVisible;
 
         if (isVisible) {
+            activeLiveTrackingVid = getLiveTrackingVid(request);
             initGpsLiveMap();
             setTimeout(() => {
                 if (gpsLiveMap) gpsLiveMap.invalidateSize();
@@ -5126,9 +5206,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (request) {
                 addTerminalLog(`Document ${getTravelRequestNo(request)} opened. Live tracking console ready.`, 'init');
+                startLiveGpsPolling(request);
             }
         } else if (qrPopover) {
             qrPopover.classList.remove('active');
+            stopLiveGpsPolling();
         }
     }
 
@@ -8383,6 +8465,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // -- Final Initialization --
     try {
+        if (bookingTypeSelect) {
+            bookingTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         initFuelPrices();
         if (typeof initDashboard === 'function') initDashboard();
         if (typeof window.loadAdminData === 'function') window.loadAdminData();
