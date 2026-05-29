@@ -46,6 +46,30 @@ function normalizeActorName(value) {
   return text ? text.slice(0, 200) : null;
 }
 
+function normalizeOptionalText(value, maxLength = 200) {
+  const text = String(value || '').trim();
+  return text ? text.slice(0, maxLength) : null;
+}
+
+function normalizeOptionalNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeTravelVehicle(vehicle = {}) {
+  const type = vehicle.type === 'private' ? 'private' : 'company';
+  return {
+    type,
+    plate: normalizeOptionalText(vehicle.plate, 100),
+    brand: normalizeOptionalText(vehicle.brand, 100),
+    model: normalizeOptionalText(vehicle.model, 100),
+    assetCode: normalizeOptionalText(vehicle.assetCode || vehicle.asset_code, 100),
+    mileageStart: normalizeOptionalNumber(vehicle.mileageStart ?? vehicle.mileage_start),
+    mileageEnd: normalizeOptionalNumber(vehicle.mileageEnd ?? vehicle.mileage_end),
+  };
+}
+
 function normalizeAttachment(attachment = {}) {
   const fileName = String(attachment.name || attachment.fileName || '').trim();
   const fileData = String(attachment.data || attachment.fileData || '').trim();
@@ -92,13 +116,16 @@ module.exports = function createTravelRequestsRouter({ mysqlPool }) {
       await connection.beginTransaction();
       const { travelers, origin, destinations, date, time, fuel, accommodation, grandTotal } = req.body;
       const jobDescription = String(req.body.jobDescription || req.body.job_description || '').trim();
+      const vehicle = normalizeTravelVehicle(req.body.vehicle);
 
       const [masterRes] = await connection.execute(
         `INSERT INTO travel_requests
          (origin_project_code, origin_name, origin_gps_link, travel_date, travel_time,
           fuel_type, fuel_qty, fuel_price, fuel_total,
-          acc_type, acc_qty, acc_price, acc_total, grand_total, job_description, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manager')`,
+          acc_type, acc_qty, acc_price, acc_total, grand_total, job_description,
+          vehicle_type, vehicle_plate, vehicle_brand, vehicle_model, vehicle_asset_code,
+          vehicle_mileage_start, vehicle_mileage_end, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manager')`,
         [
           origin.projectCode || null,
           origin.name,
@@ -115,6 +142,13 @@ module.exports = function createTravelRequestsRouter({ mysqlPool }) {
           accommodation.total,
           grandTotal,
           jobDescription || null,
+          vehicle.type,
+          vehicle.plate,
+          vehicle.brand,
+          vehicle.model,
+          vehicle.assetCode,
+          vehicle.mileageStart,
+          vehicle.mileageEnd,
         ]
       );
       const requestId = masterRes.insertId;

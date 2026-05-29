@@ -101,6 +101,13 @@ async function ensureMysqlSchema() {
   await ensureMysqlColumn('travel_requests', 'rejected_by', 'VARCHAR(200)');
   await ensureMysqlColumn('travel_requests', 'rejected_at', 'DATETIME');
   await ensureMysqlColumn('travel_requests', 'job_description', 'TEXT');
+  await ensureMysqlColumn('travel_requests', 'vehicle_type', 'VARCHAR(30)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_plate', 'VARCHAR(100)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_brand', 'VARCHAR(100)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_model', 'VARCHAR(100)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_asset_code', 'VARCHAR(100)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_mileage_start', 'NUMERIC(12,2)');
+  await ensureMysqlColumn('travel_requests', 'vehicle_mileage_end', 'NUMERIC(12,2)');
 
   await mysqlPool.execute(`
     CREATE TABLE IF NOT EXISTS travelers (

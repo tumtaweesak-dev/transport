@@ -4675,6 +4675,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAddTravelPlanAttachment = document.getElementById('btn-add-travel-plan-attachment');
     const travelPlanAttachmentInput = document.getElementById('travel-plan-attachment-input');
     const travelPlanAttachmentList = document.getElementById('travel-plan-attachment-list');
+    const travelVehicleTypeSelect = document.getElementById('travel-vehicle-type');
+    const travelCompanyVehicleSelect = document.getElementById('travel-company-vehicle');
+    const travelCompanyVehicleHint = document.getElementById('travel-company-vehicle-hint');
+    const travelVehicleMileageStartInput = document.getElementById('travel-vehicle-mileage-start');
+    const travelVehicleMileageEndInput = document.getElementById('travel-vehicle-mileage-end');
+    const travelPrivateVehicleBrandInput = document.getElementById('travel-private-vehicle-brand');
+    const travelPrivateVehicleModelInput = document.getElementById('travel-private-vehicle-model');
+    const travelPrivateVehiclePlateInput = document.getElementById('travel-private-vehicle-plate');
     let travelStatusRequests = [];
     let selectedTravelStatusId = '';
     let selectedTravelStatusRequest = null;
@@ -4835,6 +4843,118 @@ document.addEventListener('DOMContentLoaded', () => {
     function getAttachmentUrl(attachment) {
         if (!attachment?.data) return '#';
         return `data:${attachment.type || 'application/octet-stream'};base64,${attachment.data}`;
+    }
+
+    function formatTravelVehicleOption(car) {
+        const plate = car.license_plate || '-';
+        const name = [car.brand, car.model].filter(Boolean).join(' ');
+        const type = car.type ? ` (${car.type})` : '';
+        return `${plate}${name ? ` | ${name}` : ''}${type}`;
+    }
+
+    function getSelectedTravelCompanyVehicle() {
+        const plate = travelCompanyVehicleSelect?.value || '';
+        return availableCars.find((car) => car.license_plate === plate) || null;
+    }
+
+    async function ensureTravelPlanCarsLoaded() {
+        if (availableCars.length || !window.TransportApi?.listCars) return availableCars;
+        try {
+            const cars = await window.TransportApi.listCars();
+            availableCars = Array.isArray(cars) ? cars : [];
+        } catch (error) {
+            console.warn('Travel vehicle list unavailable:', error.message);
+        }
+        renderTravelCompanyVehicleOptions();
+        return availableCars;
+    }
+
+    function renderTravelCompanyVehicleOptions() {
+        if (!travelCompanyVehicleSelect) return;
+        const previousValue = travelCompanyVehicleSelect.value;
+        if (!availableCars.length) {
+            travelCompanyVehicleSelect.innerHTML = '<option value="">ไม่พบข้อมูลรถบริษัท</option>';
+            if (travelCompanyVehicleHint) travelCompanyVehicleHint.textContent = 'ยังไม่มีรถในข้อมูลรถ หรือโหลดข้อมูลรถไม่สำเร็จ';
+            return;
+        }
+
+        travelCompanyVehicleSelect.innerHTML = '<option value="">เลือกรถบริษัท</option>' + availableCars.map((car) => `
+            <option value="${escapeHtml(car.license_plate || '')}">
+                ${escapeHtml(formatTravelVehicleOption(car))}
+            </option>
+        `).join('');
+        if (previousValue && availableCars.some((car) => car.license_plate === previousValue)) {
+            travelCompanyVehicleSelect.value = previousValue;
+        }
+        if (travelCompanyVehicleHint) travelCompanyVehicleHint.textContent = `พบรถ ${availableCars.length} คัน จากข้อมูลรถในโปรแกรม`;
+    }
+
+    function updateTravelVehicleFields() {
+        const isPrivate = travelVehicleTypeSelect?.value === 'private';
+        document.querySelectorAll('.travel-company-vehicle-field').forEach((field) => {
+            field.hidden = isPrivate;
+        });
+        document.querySelectorAll('.travel-private-vehicle-field').forEach((field) => {
+            field.hidden = !isPrivate;
+        });
+
+        if (travelCompanyVehicleSelect) travelCompanyVehicleSelect.required = !isPrivate;
+        [travelPrivateVehicleBrandInput, travelPrivateVehicleModelInput, travelPrivateVehiclePlateInput].forEach((input) => {
+            if (input) input.required = isPrivate;
+        });
+
+        if (!isPrivate) ensureTravelPlanCarsLoaded();
+    }
+
+    function collectTravelVehicleInfo() {
+        const type = travelVehicleTypeSelect?.value === 'private' ? 'private' : 'company';
+        if (type === 'private') {
+            return {
+                type,
+                brand: travelPrivateVehicleBrandInput?.value.trim() || '',
+                model: travelPrivateVehicleModelInput?.value.trim() || '',
+                plate: travelPrivateVehiclePlateInput?.value.trim() || '',
+                assetCode: '',
+                mileageStart: null,
+                mileageEnd: null
+            };
+        }
+
+        const car = getSelectedTravelCompanyVehicle();
+        return {
+            type,
+            plate: travelCompanyVehicleSelect?.value || '',
+            brand: car?.brand || '',
+            model: car?.model || '',
+            assetCode: car?.asset_code || '',
+            mileageStart: travelVehicleMileageStartInput?.value || null,
+            mileageEnd: travelVehicleMileageEndInput?.value || null
+        };
+    }
+
+    function renderTravelVehicleSummary(request) {
+        const type = request?.vehicle_type || '';
+        if (!type) return '';
+        const typeLabel = type === 'private' ? 'รถส่วนตัว' : 'รถบริษัท';
+        const vehicleText = [
+            request.vehicle_plate,
+            [request.vehicle_brand, request.vehicle_model].filter(Boolean).join(' ')
+        ].filter(Boolean).join(' | ') || '-';
+        const mileageText = type === 'company'
+            ? `${request.vehicle_mileage_start ?? '-'} - ${request.vehicle_mileage_end ?? '-'}`
+            : '-';
+
+        return `
+            <div class="preview-field">
+                <span>รถที่ใช้</span>
+                <strong>${escapeHtml(typeLabel)}</strong>
+                <small>${escapeHtml(vehicleText)}</small>
+            </div>
+            <div class="preview-field">
+                <span>เลขไมล์</span>
+                <strong>${escapeHtml(mileageText)}</strong>
+            </div>
+        `;
     }
 
     function renderTravelAttachmentPanel(request, context = 'status') {
@@ -5023,6 +5143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span>เส้นทาง</span>
                     <strong>${escapeHtml(routeText)}</strong>
                 </div>
+                ${renderTravelVehicleSummary(request)}
                 <div>
                     <span>ยอดรวม</span>
                     <strong>${formatPrintMoney(request.grand_total)} บาท</strong>
@@ -5218,6 +5339,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>เวลาเดินทาง</span>
                         <strong>${escapeHtml(request.travel_time || '-')}</strong>
                     </div>
+                    ${renderTravelVehicleSummary(request)}
                     <div class="preview-field preview-fuel-editor">
                         <span>ค่าน้ำมัน</span>
                         <div class="preview-fuel-type">${escapeHtml(request.fuel_type || '-')}</div>
@@ -6280,6 +6402,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateValue = getInputValue(formTravelPlan, 'input[type="date"]');
             const timeValue = getInputValue(formTravelPlan, 'input[type="time"]');
             const jobDescription = getInputValue(formTravelPlan, '#travel-job-description');
+            const vehicle = collectTravelVehicleInfo();
 
             const fuel = {
                 type: document.getElementById('fuel-type').value,
@@ -6305,6 +6428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 date: dateValue,
                 time: timeValue,
                 jobDescription,
+                vehicle,
                 fuel,
                 accommodation,
                 grandTotal,
@@ -6351,6 +6475,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const userListBody = document.getElementById('admin-user-list');
     const carListBody = document.getElementById('admin-car-list');
     let availableCars = [];
+
+    if (travelVehicleTypeSelect) {
+        travelVehicleTypeSelect.addEventListener('change', updateTravelVehicleFields);
+        updateTravelVehicleFields();
+    }
 
     function formatCarOptionLabel(car) {
         const plate = car.license_plate || '-';
@@ -6454,6 +6583,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 availableCars = Array.isArray(cars) ? cars : [];
                 bindArrangeCarSelect();
                 renderArrangeCarOptions();
+                renderTravelCompanyVehicleOptions();
                 if (availableCars.length === 0) {
                     carListBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีข้อมูลรถ</td></tr>';
                 } else {

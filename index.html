@@ -423,6 +423,52 @@
                             </div>
                         </div>
 
+                        <div class="glass-panel-inner mt-4 travel-vehicle-panel">
+                            <h4><i class="fa-solid fa-car-side text-accent"></i> รถที่ใช้เดินทาง</h4>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>ประเภทรถ</label>
+                                    <select id="travel-vehicle-type" required>
+                                        <option value="company">รถบริษัท</option>
+                                        <option value="private">รถส่วนตัว</option>
+                                    </select>
+                                </div>
+                                <div class="input-group travel-company-vehicle-field">
+                                    <label>เลือกรถบริษัท</label>
+                                    <select id="travel-company-vehicle">
+                                        <option value="">กำลังโหลดข้อมูลรถ...</option>
+                                    </select>
+                                    <small id="travel-company-vehicle-hint" class="field-hint text-secondary">ดึงจากข้อมูลรถในโปรแกรม</small>
+                                </div>
+                            </div>
+                            <div class="form-row split-row mt-3 travel-company-vehicle-field">
+                                <div class="input-group">
+                                    <label>เลขไมล์เริ่มต้น</label>
+                                    <input type="number" id="travel-vehicle-mileage-start" min="0" step="1" placeholder="กรอกตอนออกเดินทาง หรือกรอกทีหลัง">
+                                </div>
+                                <div class="input-group">
+                                    <label>เลขไมล์สิ้นสุด</label>
+                                    <input type="number" id="travel-vehicle-mileage-end" min="0" step="1" placeholder="กรอกตอนกลับ หรือกรอกทีหลัง">
+                                </div>
+                            </div>
+                            <div class="form-row split-row mt-3 travel-private-vehicle-field" hidden>
+                                <div class="input-group">
+                                    <label>ยี่ห้อ</label>
+                                    <input type="text" id="travel-private-vehicle-brand" placeholder="เช่น Toyota">
+                                </div>
+                                <div class="input-group">
+                                    <label>รุ่น</label>
+                                    <input type="text" id="travel-private-vehicle-model" placeholder="เช่น Hilux Revo">
+                                </div>
+                            </div>
+                            <div class="form-row mt-3 travel-private-vehicle-field" hidden>
+                                <div class="input-group">
+                                    <label>ทะเบียน</label>
+                                    <input type="text" id="travel-private-vehicle-plate" placeholder="เช่น กท 1234 กรุงเทพฯ">
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 2. Site / Route Details -->
                         <h3 class="section-subtitle mt-5">เส้นทาง (ต้นทาง - ปลายทาง)</h3>
                         
