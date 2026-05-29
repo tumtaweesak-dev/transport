@@ -211,12 +211,16 @@
             <header class="top-header glass-panel">
                 <h1 id="page-title"><i class="fa-solid fa-chart-line"></i> แดชบอร์ด (Dashboard)</h1>
                 <div class="user-profile">
-                    <span class="current-user-name" id="current-user-name">ผู้ใช้งาน</span>
-                    <div class="avatar">
-                        <i class="fa-solid fa-user"></i>
-                    </div>
-                    <button type="button" class="btn-icon text-muted" id="btn-logout" title="ออกจากระบบ">
+                    <button type="button" class="btn btn-profile" id="btn-open-profile" title="โปรไฟล์">
+                        <span class="avatar profile-avatar-button">
+                            <i class="fa-solid fa-user"></i>
+                            <img id="profile-avatar-preview" alt="Profile photo" hidden>
+                        </span>
+                        <span class="current-user-name" id="current-user-name">ผู้ใช้งาน</span>
+                    </button>
+                    <button type="button" class="btn btn-logout" id="btn-logout" title="ออกจากระบบ">
                         <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        <span>ออกจากระบบ</span>
                     </button>
                 </div>
             </header>
@@ -1455,6 +1459,78 @@
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="permission-pagination">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-employee-permission-prev">
+                                    <i class="fa-solid fa-chevron-left"></i> ก่อนหน้า
+                                </button>
+                                <span id="employee-permission-page-info">หน้า 1 / 1</span>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-employee-permission-next">
+                                    ถัดไป <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="profile-settings" class="view-section glass-panel">
+                    <div class="flex-between mb-4">
+                        <div>
+                            <h3 class="section-subtitle mb-0" style="border-bottom: none;"><i class="fa-solid fa-user-gear text-accent"></i> โปรไฟล์</h3>
+                            <p class="text-secondary">จัดการรูปโปรไฟล์ รหัสผ่าน และธีมส่วนตัวของผู้ใช้งาน</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-settings-grid">
+                        <div class="glass-panel-inner profile-photo-panel">
+                            <h4><i class="fa-solid fa-image text-accent"></i> รูปโปรไฟล์</h4>
+                            <div class="profile-photo-preview">
+                                <img id="profile-photo-large" alt="Profile photo" hidden>
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            <div class="form-actions mt-3 profile-actions">
+                                <label class="btn btn-secondary btn-sm" for="profile-photo-input">
+                                    <i class="fa-solid fa-upload"></i> เพิ่มรูป
+                                </label>
+                                <input type="file" id="profile-photo-input" accept="image/*" hidden>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-remove-profile-photo">
+                                    <i class="fa-solid fa-trash"></i> ลบรูป
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel-inner profile-password-panel">
+                            <h4><i class="fa-solid fa-key text-accent"></i> เปลี่ยนรหัสผ่าน</h4>
+                            <form class="dynamic-form" id="form-profile-password" onsubmit="event.preventDefault();">
+                                <div class="input-group">
+                                    <label>รหัสผ่านใหม่</label>
+                                    <input type="password" id="profile-new-password" placeholder="กรอกรหัสผ่านใหม่" autocomplete="new-password" required>
+                                </div>
+                                <div class="input-group mt-3">
+                                    <label>ยืนยันรหัสผ่านใหม่</label>
+                                    <input type="password" id="profile-confirm-password" placeholder="กรอกรหัสผ่านอีกครั้ง" autocomplete="new-password" required>
+                                </div>
+                                <div class="form-actions mt-4" style="display: flex; justify-content: flex-end;">
+                                    <button type="submit" class="btn btn-primary btn-sm">
+                                        <i class="fa-solid fa-floppy-disk"></i> บันทึกรหัสผ่าน
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="glass-panel-inner mt-4">
+                        <div class="flex-between mb-3">
+                            <div>
+                                <h4><i class="fa-solid fa-palette text-accent"></i> เลือก Theme</h4>
+                                <p class="text-secondary">เลือกบรรยากาศหน้าจอที่ชอบ ใช้เฉพาะบัญชีนี้บนเครื่องนี้</p>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-profile-theme">
+                                <i class="fa-solid fa-rotate-left"></i> Microsoft Teams
+                            </button>
+                        </div>
+
+                        <div class="theme-category">
+                            <div class="profile-theme-grid" id="recommended-theme-grid"></div>
                         </div>
                     </div>
                 </section>
@@ -1842,6 +1918,50 @@
                         <button class="btn btn-primary btn-sm" id="btn-add-maintenance"><i class="fa-solid fa-plus"></i> บันทึกรายการใหม่</button>
                     </div>
 
+                    <div class="glass-panel-inner mb-5">
+                        <h4 class="mb-3"><i class="fa-solid fa-plus text-accent"></i> เพิ่มรายการต่ออายุ</h4>
+                        <form class="dynamic-form" id="form-renewal-entry" onsubmit="event.preventDefault();">
+                            <div class="form-row split-row">
+                                <div class="input-group">
+                                    <label>ประเภทรายการ</label>
+                                    <select id="renewal-entry-type" required>
+                                        <option value="maintenance">ตารางซ่อมบำรุง</option>
+                                        <option value="tax">ตารางต่อภาษี/พรบ</option>
+                                        <option value="insurance">ตารางต่อประกันอุบัติเหตุ</option>
+                                    </select>
+                                </div>
+                                <div class="input-group">
+                                    <label>ทะเบียนรถ</label>
+                                    <input type="text" id="renewal-entry-plate" placeholder="เช่น 6W-8492" required>
+                                </div>
+                            </div>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>รายละเอียด / บริษัทประกัน</label>
+                                    <input type="text" id="renewal-entry-title" placeholder="เช่น เปลี่ยนน้ำมันเครื่อง, ภาษีรถยนต์ / พรบ., บริษัทประกัน">
+                                </div>
+                                <div class="input-group">
+                                    <label>เลขกรมธรรม์ / รอบถัดไป</label>
+                                    <input type="text" id="renewal-entry-ref" placeholder="เช่น 50,000 กม. หรือเลขกรมธรรม์">
+                                </div>
+                            </div>
+                            <div class="form-row split-row mt-3">
+                                <div class="input-group">
+                                    <label>วันที่ล่าสุด / วันหมดอายุ</label>
+                                    <input type="date" id="renewal-entry-date" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>แจ้งเตือนล่วงหน้า (วัน)</label>
+                                    <input type="number" id="renewal-entry-reminder" min="0" value="30">
+                                </div>
+                            </div>
+                            <div class="form-actions mt-4" style="display: flex; justify-content: flex-end; gap: 10px;">
+                                <button type="reset" class="btn btn-secondary btn-sm"><i class="fa-solid fa-eraser"></i> ล้างฟอร์ม</button>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus"></i> เพิ่มเข้าตาราง</button>
+                            </div>
+                        </form>
+                    </div>
+
                     <h4 class="mb-3"><i class="fa-solid fa-screwdriver-wrench text-accent"></i> ตารางซ่อมบำรุง (Maintenance)</h4>
                     <div class="table-container mb-5">
                         <table class="modern-table">
@@ -1889,7 +2009,7 @@
                                     <th>จัดการ</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="tax-prb-list-body">
                                 <tr>
                                     <td>6W-8492</td>
                                     <td>ภาษีรถยนต์ / พรบ.</td>
@@ -1923,7 +2043,7 @@
                                     <th>จัดการ</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="accident-insurance-list-body">
                                 <tr>
                                     <td>6W-8492</td>
                                     <td>ระบุภายหลัง</td>
