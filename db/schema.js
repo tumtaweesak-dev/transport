@@ -188,6 +188,18 @@ async function ensureMysqlSchema() {
     ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
   `);
 
+  await mysqlPool.execute(`
+    CREATE TABLE IF NOT EXISTS employee_role_permissions (
+      employee_id VARCHAR(80) PRIMARY KEY,
+      employee_name VARCHAR(200),
+      role_id VARCHAR(120),
+      role_name VARCHAR(200),
+      menus JSON NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  `);
+
   await mysqlPool.execute('ALTER TABLE travel_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE travelers CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE travel_destinations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
@@ -195,6 +207,7 @@ async function ensureMysqlSchema() {
   await mysqlPool.execute('ALTER TABLE delivery_notes CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE delivery_note_items CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE menu_permissions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+  await mysqlPool.execute('ALTER TABLE employee_role_permissions CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE editable_employees CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
   await mysqlPool.execute('ALTER TABLE editable_cars CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
 }

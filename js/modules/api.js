@@ -66,6 +66,20 @@
                 method: 'DELETE',
             });
         },
+        listEmployeeRolePermissions() {
+            return request('/api/employee-role-permissions');
+        },
+        saveEmployeeRolePermission(employeeId, data) {
+            return request(`/api/employee-role-permissions/${encodeURIComponent(employeeId)}`, {
+                method: 'PUT',
+                body: JSON.stringify(data),
+            });
+        },
+        deleteEmployeeRolePermission(employeeId) {
+            return request(`/api/employee-role-permissions/${encodeURIComponent(employeeId)}`, {
+                method: 'DELETE',
+            });
+        },
         createCar(data) {
             return request('/api/cars', { method: 'POST', body: JSON.stringify(data) });
         },

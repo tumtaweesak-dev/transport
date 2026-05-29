@@ -56,6 +56,33 @@ function mapPermissionRow(row) {
   };
 }
 
+function normalizeRoleMenus(menus) {
+  if (!Array.isArray(menus)) return [];
+  return [...new Set(menus.map((menu) => String(menu).trim()).filter(Boolean))];
+}
+
+function mapRolePermissionRow(row) {
+  return {
+    employeeId: row.employee_id,
+    name: row.employee_name || row.employee_id,
+    roleId: row.role_id || '',
+    roleName: row.role_name || '',
+    menus: normalizeRoleMenus(parseJsonArray(row.menus)),
+    updatedAt: row.updated_at,
+  };
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
 async function syncEmployeesToMysql({ pgPool, mysqlPool }) {
   const now = Date.now();
   if (now - lastEmployeeSyncAt < EMPLOYEE_SYNC_INTERVAL_MS) return;
@@ -353,6 +380,63 @@ module.exports = function createUsersRouter({ pgPool, mysqlPool }) {
     }
 
     await mysqlPool.execute('DELETE FROM menu_permissions WHERE employee_id = ?', [employeeId]);
+    res.status(200).json({ success: true, employeeId });
+  }));
+
+  router.get('/employee-role-permissions', asyncHandler(async (req, res) => {
+    try {
+      const [rows] = await mysqlPool.execute(`
+        SELECT employee_id, employee_name, role_id, role_name, menus, updated_at
+        FROM employee_role_permissions
+        ORDER BY employee_id ASC
+      `);
+      res.status(200).json(rows.map(mapRolePermissionRow));
+    } catch (error) {
+      console.warn('Employee role permissions unavailable, returning empty list:', error.message);
+      res.status(200).json([]);
+    }
+  }));
+
+  router.put('/employee-role-permissions/:employeeId', asyncHandler(async (req, res) => {
+    const employeeId = String(req.params.employeeId || '').trim();
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    const employeeName = String(req.body.name || employeeId).trim();
+    const roleId = String(req.body.roleId || '').trim();
+    const roleName = String(req.body.roleName || '').trim();
+    const menus = normalizeRoleMenus(req.body.menus);
+
+    await mysqlPool.execute(
+      `INSERT INTO employee_role_permissions (employee_id, employee_name, role_id, role_name, menus)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         employee_name = VALUES(employee_name),
+         role_id = VALUES(role_id),
+         role_name = VALUES(role_name),
+         menus = VALUES(menus)`,
+      [employeeId, employeeName, roleId, roleName, JSON.stringify(menus)]
+    );
+
+    const [rows] = await mysqlPool.execute(
+      `SELECT employee_id, employee_name, role_id, role_name, menus, updated_at
+       FROM employee_role_permissions
+       WHERE employee_id = ?
+       LIMIT 1`,
+      [employeeId]
+    );
+
+    res.status(200).json(mapRolePermissionRow(rows[0]));
+  }));
+
+  router.delete('/employee-role-permissions/:employeeId', asyncHandler(async (req, res) => {
+    const employeeId = String(req.params.employeeId || '').trim();
+    if (!employeeId) {
+      return res.status(400).json({ error: 'employeeId is required' });
+    }
+
+    await mysqlPool.execute('DELETE FROM employee_role_permissions WHERE employee_id = ?', [employeeId]);
     res.status(200).json({ success: true, employeeId });
   }));
 

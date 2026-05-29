@@ -701,6 +701,39 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(EMPLOYEE_ROLE_PERMISSION_KEY, JSON.stringify(assignments || {}));
     }
 
+    function employeeRoleRowsToMap(rows) {
+        return (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
+            const employeeId = normalizeEmployeeCode(row.employeeId || row.employee_id);
+            if (!employeeId) return acc;
+            acc[employeeId] = {
+                employeeId,
+                name: row.name || row.employeeName || row.employee_name || employeeId,
+                roleId: row.roleId || row.role_id || DEFAULT_EMPLOYEE_ROLE_ID,
+                roleName: row.roleName || row.role_name || 'พนักงาน',
+                menus: Array.isArray(row.menus) ? row.menus.filter((menuId) => PERMISSION_MENU_IDS.includes(menuId)) : [],
+                updatedAt: row.updatedAt || row.updated_at || null
+            };
+            return acc;
+        }, {});
+    }
+
+    async function syncEmployeeRolePermissionsFromServer() {
+        if (!window.TransportApi || typeof window.TransportApi.listEmployeeRolePermissions !== 'function') {
+            return;
+        }
+
+        try {
+            const rows = await window.TransportApi.listEmployeeRolePermissions();
+            const serverAssignments = employeeRoleRowsToMap(rows);
+            saveEmployeeRolePermissions({
+                ...loadEmployeeRolePermissions(),
+                ...serverAssignments
+            });
+        } catch (error) {
+            console.warn('Employee role permissions sync skipped:', error.message);
+        }
+    }
+
     function permissionRowsToMap(rows) {
         return (Array.isArray(rows) ? rows : []).reduce((acc, row) => {
             const employeeId = normalizeEmployeeCode(row.employeeId || row.employee_id);
@@ -2204,6 +2237,13 @@ document.addEventListener('DOMContentLoaded', () => {
             assignments[employeeId] = assignment;
             unhideEmployeePermissionRow(employeeId);
             saveEmployeeRolePermissions(assignments);
+            if (window.TransportApi && typeof window.TransportApi.saveEmployeeRolePermission === 'function') {
+                try {
+                    await window.TransportApi.saveEmployeeRolePermission(employeeId, assignment);
+                } catch (error) {
+                    console.warn('Employee role permission saved locally only:', error.message);
+                }
+            }
             await mirrorAssignmentToApprovalPermissions(assignment);
             renderPermissionManagement();
             renderMenuPermissionList();
@@ -2306,6 +2346,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveEmployeeRolePermissions(assignments);
                 if (!assignment.hasAssignment) {
                     hideEmployeePermissionRow(employeeId);
+                }
+                if (window.TransportApi && typeof window.TransportApi.deleteEmployeeRolePermission === 'function') {
+                    try {
+                        await window.TransportApi.deleteEmployeeRolePermission(employeeId);
+                    } catch (error) {
+                        console.warn('Employee role permission deleted locally only:', error.message);
+                    }
                 }
 
                 const oldPermissions = loadMenuPermissions();
@@ -6469,6 +6516,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial render
     renderTables();
     loadTravelStatusRequests();
+    syncEmployeeRolePermissionsFromServer().then(() => {
+        renderPermissionManagement();
+        applyMenuPermissions();
+    });
     syncMenuPermissionsFromServer();
 
     // === 8. Load initial admin data ===
