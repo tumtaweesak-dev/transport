@@ -44,8 +44,13 @@
         createUser(data) {
             return request('/api/users', { method: 'POST', body: JSON.stringify(data) });
         },
-        listUsers() {
-            return request('/api/users');
+        listUsers(search, options = {}) {
+            const params = new URLSearchParams();
+            if (search) params.set('search', search);
+            if (options.page) params.set('page', options.page);
+            if (options.limit) params.set('limit', options.limit);
+            const query = params.toString() ? `?${params.toString()}` : '';
+            return request(`/api/users${query}`);
         },
         listMenuPermissions() {
             return request('/api/menu-permissions');

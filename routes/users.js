@@ -6,6 +6,31 @@ const { hashPassword } = require('../utils/passwords');
 let lastEmployeeSyncAt = 0;
 const EMPLOYEE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const APPROVAL_MENU_IDS = ['manager-approval', 'hr-approval', 'md-approval', 'accounting-approval'];
+const ALLOWED_EMPLOYEE_CODE_PATTERN = '^[15A-Za-z]';
+
+function quoteIdentifier(value) {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    throw new Error(`Invalid PostgreSQL identifier: ${value}`);
+  }
+  return `"${value}"`;
+}
+
+function quoteQualifiedIdentifier(value) {
+  return String(value || 'security.employee')
+    .split('.')
+    .map((part) => quoteIdentifier(part.trim()))
+    .join('.');
+}
+
+function getEmployeeSourceConfig() {
+  return {
+    table: quoteQualifiedIdentifier(process.env.PG_AUTH_EMPLOYEE_TABLE || 'security.employee'),
+    employeeCodeColumn: quoteIdentifier(process.env.PG_AUTH_EMPLOYEE_CODE_COLUMN || 'employeecode'),
+    employeeNameColumn: quoteIdentifier(process.env.PG_AUTH_EMPLOYEE_NAME_COLUMN || 'fullname'),
+    employeeBranchColumn: quoteIdentifier(process.env.PG_AUTH_EMPLOYEE_BRANCH_COLUMN || 'branch'),
+    employeeDepartmentColumn: quoteIdentifier(process.env.PG_AUTH_EMPLOYEE_DEPARTMENT_COLUMN || 'dept_code'),
+  };
+}
 
 function normalizeMenus(menus) {
   if (!Array.isArray(menus)) return [];
@@ -35,17 +60,24 @@ async function syncEmployeesToMysql({ pgPool, mysqlPool }) {
   const now = Date.now();
   if (now - lastEmployeeSyncAt < EMPLOYEE_SYNC_INTERVAL_MS) return;
 
-  const syncLimit = Number(process.env.PG_EMPLOYEE_SYNC_LIMIT || 5000);
+  const {
+    table,
+    employeeCodeColumn,
+    employeeNameColumn,
+    employeeBranchColumn,
+    employeeDepartmentColumn,
+  } = getEmployeeSourceConfig();
+  const syncLimit = Number(process.env.PG_EMPLOYEE_SYNC_LIMIT || 20000);
   const result = await pgPool.query(
-    `SELECT TRIM(CAST(employeecode AS TEXT)) AS employee_id,
-            fullname AS name,
-            branch,
-            dept_code AS department,
+    `SELECT TRIM(CAST(${employeeCodeColumn} AS TEXT)) AS employee_id,
+            ${employeeNameColumn} AS name,
+            ${employeeBranchColumn} AS branch,
+            ${employeeDepartmentColumn} AS department,
             NULL AS position
-     FROM security.employee
-     WHERE employeecode IS NOT NULL
-       AND TRIM(CAST(employeecode AS TEXT)) <> ''
-     ORDER BY fullname ASC
+     FROM ${table}
+     WHERE ${employeeCodeColumn} IS NOT NULL
+       AND TRIM(CAST(${employeeCodeColumn} AS TEXT)) <> ''
+     ORDER BY TRIM(CAST(${employeeCodeColumn} AS TEXT)) ASC
      LIMIT $1`,
     [syncLimit]
   );
@@ -77,6 +109,132 @@ async function syncEmployeesToMysql({ pgPool, mysqlPool }) {
   );
 
   lastEmployeeSyncAt = now;
+}
+
+async function searchEmployees({ pgPool, mysqlPool, search }) {
+  const keyword = String(search || '').trim();
+  if (!keyword) return null;
+
+  const {
+    table,
+    employeeCodeColumn,
+    employeeNameColumn,
+    employeeBranchColumn,
+    employeeDepartmentColumn,
+  } = getEmployeeSourceConfig();
+  const pgResult = await pgPool.query(
+    `SELECT TRIM(CAST(${employeeCodeColumn} AS TEXT)) AS employee_id,
+            ${employeeNameColumn} AS name,
+            ${employeeBranchColumn} AS branch,
+            ${employeeDepartmentColumn} AS department,
+            NULL AS position,
+            'postgres-live' AS record_source,
+            0 AS is_edited
+     FROM ${table}
+     WHERE TRIM(CAST(${employeeCodeColumn} AS TEXT)) ~ $2
+       AND (
+         TRIM(CAST(${employeeCodeColumn} AS TEXT)) ILIKE $1
+         OR ${employeeNameColumn} ILIKE $1
+       )
+     ORDER BY TRIM(CAST(${employeeCodeColumn} AS TEXT)) ASC
+     LIMIT 50`,
+    [`%${keyword}%`, ALLOWED_EMPLOYEE_CODE_PATTERN]
+  );
+
+  let mysqlRows = [];
+  try {
+    const mysqlLike = `%${keyword}%`;
+    const [rows] = await mysqlPool.execute(
+      `SELECT employee_id, name, branch, department, position, record_source, is_edited
+       FROM editable_employees
+       WHERE (employee_id LIKE ? OR name LIKE ?)
+         AND employee_id REGEXP ?
+       ORDER BY employee_id ASC
+       LIMIT 50`,
+      [mysqlLike, mysqlLike, ALLOWED_EMPLOYEE_CODE_PATTERN]
+    );
+    mysqlRows = rows;
+  } catch (error) {
+    console.warn('Editable employee search skipped:', error.message);
+  }
+
+  const rowsByEmployeeId = new Map();
+  [...pgResult.rows, ...mysqlRows].forEach((row) => {
+    const employeeId = String(row.employee_id || '').trim();
+    if (!employeeId) return;
+    rowsByEmployeeId.set(employeeId, row);
+  });
+
+  return Array.from(rowsByEmployeeId.values())
+    .sort((a, b) => String(a.employee_id).localeCompare(String(b.employee_id), 'th'));
+}
+
+async function listLoginEmployees({ pgPool, mysqlPool, page = 1, limit = 100 } = {}) {
+  const {
+    table,
+    employeeCodeColumn,
+    employeeNameColumn,
+    employeeBranchColumn,
+    employeeDepartmentColumn,
+  } = getEmployeeSourceConfig();
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 20), 500);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const pgResult = await pgPool.query(
+    `SELECT TRIM(CAST(${employeeCodeColumn} AS TEXT)) AS employee_id,
+            ${employeeNameColumn} AS name,
+            ${employeeBranchColumn} AS branch,
+            ${employeeDepartmentColumn} AS department,
+            NULL AS position,
+            'postgres-live' AS record_source,
+            0 AS is_edited
+     FROM ${table}
+     WHERE ${employeeCodeColumn} IS NOT NULL
+       AND TRIM(CAST(${employeeCodeColumn} AS TEXT)) <> ''
+       AND TRIM(CAST(${employeeCodeColumn} AS TEXT)) ~ $1
+     ORDER BY TRIM(CAST(${employeeCodeColumn} AS TEXT)) ASC`,
+    [ALLOWED_EMPLOYEE_CODE_PATTERN]
+  );
+
+  let mysqlRows = [];
+  try {
+    const [rows] = await mysqlPool.execute(
+      `SELECT employee_id, name, branch, department, position, record_source, is_edited
+       FROM editable_employees
+       WHERE employee_id REGEXP ?
+       ORDER BY employee_id ASC`,
+      [ALLOWED_EMPLOYEE_CODE_PATTERN]
+    );
+    mysqlRows = rows;
+  } catch (error) {
+    console.warn('Editable employee list skipped:', error.message);
+  }
+
+  const rowsByEmployeeId = new Map();
+  pgResult.rows.forEach((row) => {
+    const employeeId = String(row.employee_id || '').trim();
+    if (!employeeId) return;
+    rowsByEmployeeId.set(employeeId, row);
+  });
+
+  // Login checks editable_employees first, so edited/login-ready rows should win when duplicated.
+  mysqlRows.forEach((row) => {
+    const employeeId = String(row.employee_id || '').trim();
+    if (!employeeId) return;
+    rowsByEmployeeId.set(employeeId, row);
+  });
+
+  const mergedRows = Array.from(rowsByEmployeeId.values())
+    .sort((a, b) => String(a.employee_id).localeCompare(String(b.employee_id), 'th'));
+  const total = mergedRows.length;
+  const offset = (safePage - 1) * safeLimit;
+
+  return {
+    rows: mergedRows.slice(offset, offset + safeLimit),
+    page: safePage,
+    limit: safeLimit,
+    total,
+    totalPages: Math.max(Math.ceil(total / safeLimit), 1),
+  };
 }
 
 module.exports = function createUsersRouter({ pgPool, mysqlPool }) {
@@ -127,19 +285,18 @@ module.exports = function createUsersRouter({ pgPool, mysqlPool }) {
 
   router.get('/users', asyncHandler(async (req, res) => {
     try {
-      try {
-        await syncEmployeesToMysql({ pgPool, mysqlPool });
-      } catch (syncError) {
-        console.warn('Employee sync from PostgreSQL skipped, using MySQL copy:', syncError.message);
+      const searchedRows = await searchEmployees({ pgPool, mysqlPool, search: req.query.search });
+      if (searchedRows) {
+        return res.status(200).json(searchedRows);
       }
 
-      const [rows] = await mysqlPool.execute(`
-        SELECT employee_id, name, branch, department, position, record_source, is_edited
-        FROM editable_employees
-        ORDER BY name ASC
-        LIMIT 500
-      `);
-      res.status(200).json(rows);
+      const result = await listLoginEmployees({
+        pgPool,
+        mysqlPool,
+        page: req.query.page,
+        limit: req.query.limit,
+      });
+      res.status(200).json(result);
     } catch (error) {
       console.warn('Users list unavailable, returning empty list:', error.message);
       res.status(200).json([]);

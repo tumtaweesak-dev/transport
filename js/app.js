@@ -16,6 +16,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarCompanyName = document.getElementById('sidebar-company-name');
     const currentUserName = document.getElementById('current-user-name');
     const btnLogout = document.getElementById('btn-logout');
+    const btnOpenProfile = document.getElementById('btn-open-profile');
+    const profileAvatarPreview = document.getElementById('profile-avatar-preview');
+    const profilePhotoLarge = document.getElementById('profile-photo-large');
+    const profilePhotoInput = document.getElementById('profile-photo-input');
+    const btnRemoveProfilePhoto = document.getElementById('btn-remove-profile-photo');
+    const formProfilePassword = document.getElementById('form-profile-password');
+    const profileNewPasswordInput = document.getElementById('profile-new-password');
+    const profileConfirmPasswordInput = document.getElementById('profile-confirm-password');
+    const btnResetProfileTheme = document.getElementById('btn-reset-profile-theme');
+    const footballThemeGrid = document.getElementById('football-theme-grid');
+    const animeThemeGrid = document.getElementById('anime-theme-grid');
+    const recommendedThemeGrid = document.getElementById('recommended-theme-grid');
     const btnToggleLoginPassword = document.getElementById('btn-toggle-login-password');
     const defaultLoginButtonHtml = loginSubmitButton ? loginSubmitButton.innerHTML : '';
     const isStaticHostedApp = window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:';
@@ -23,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? window.supabase.createClient(window.TMS_SUPABASE_URL, window.TMS_SUPABASE_ANON_KEY)
         : null;
     const MENU_PERMISSION_KEY = 'tms_menu_permissions_v1';
+    const USER_PROFILE_KEY = 'tms_user_profile_v1';
     const APPROVAL_MENU_CONFIG = [
         { id: 'manager-approval', label: 'อนุมัติโดยหัวหน้า', icon: 'fa-user-tie' },
         { id: 'hr-approval', label: 'ตรวจสอบโดย HR', icon: 'fa-users-gear' },
@@ -32,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPROVAL_MENU_IDS = APPROVAL_MENU_CONFIG.map((item) => item.id);
     const PERMISSION_ROLE_KEY = 'tms_permission_roles_v1';
     const EMPLOYEE_ROLE_PERMISSION_KEY = 'tms_employee_role_permissions_v1';
+    const EMPLOYEE_PERMISSION_HIDDEN_KEY = 'tms_employee_permission_hidden_v1';
     const PERMISSION_MENU_CONFIG = [
         { id: 'dashboard', label: 'แดชบอร์ด', icon: 'fa-chart-line' },
         { id: 'travel-plan', label: 'วางแผนการเดินทาง', icon: 'fa-map-location-dot' },
@@ -54,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const PERMISSION_MENU_IDS = PERMISSION_MENU_CONFIG.map((item) => item.id);
     const DEFAULT_EMPLOYEE_ROLE_ID = 'role-employee';
     const DEFAULT_EMPLOYEE_MENU_IDS = ['dashboard', 'travel-plan', 'travel-status', 'car-booking', 'car-document-status'];
+    const ALLOWED_EMPLOYEE_CODE_PATTERN = /^[15A-Za-z]/;
 
     function getLoginSession() {
         try {
@@ -211,6 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isLoggedIn && hasSelectedCompany && typeof loadCompanies === 'function') {
             hasSelectedCompany = loadCompanies().some((company) => company.id === session.selectedCompanyId);
+        }
+
+        if (isLoggedIn) {
+            ensureDefaultEmployeePermission(session);
         }
 
         document.body.classList.toggle('auth-unlocked', isLoggedIn && hasSelectedCompany);
@@ -499,11 +518,107 @@ document.addEventListener('DOMContentLoaded', () => {
         'maintenance': { text: 'กำหนดรอบการต่ออายุ', icon: 'fa-wrench' },
         'fuel': { text: 'จัดการค่าน้ำมัน (Fuel Management)', icon: 'fa-gas-pump' },
         'company-settings': { text: 'ข้อมูลบริษัท (Company)', icon: 'fa-building' },
+        'profile-settings': { text: 'โปรไฟล์ (Profile)', icon: 'fa-user-gear' },
         'permission-management': { text: 'จัดการสิทธิ์ (Permissions)', icon: 'fa-shield-halved' }
     };
 
     function normalizeEmployeeCode(value) {
         return String(value || '').trim();
+    }
+
+    function isAllowedEmployeeCode(employeeId) {
+        const normalized = normalizeEmployeeCode(employeeId);
+        return ALLOWED_EMPLOYEE_CODE_PATTERN.test(normalized);
+    }
+
+    const profileThemes = {
+        football: [
+            { id: 'football-arsenal', name: 'Arsenal', note: 'แดง / ทอง', colors: ['#ef0107', '#ffffff', '#dbb95a'] },
+            { id: 'football-liverpool', name: 'Liverpool', note: 'แดง / เขียว', colors: ['#c8102e', '#00b2a9', '#ffffff'] },
+            { id: 'football-mancity', name: 'Manchester City', note: 'ฟ้า / กรม', colors: ['#6cabdd', '#1c2c5b', '#ffffff'] },
+            { id: 'football-manunited', name: 'Manchester United', note: 'แดง / ดำ', colors: ['#da291c', '#111111', '#fbe122'] },
+            { id: 'football-chelsea', name: 'Chelsea', note: 'น้ำเงิน / ขาว', colors: ['#034694', '#ffffff', '#dba111'] },
+            { id: 'football-spurs', name: 'Tottenham', note: 'ขาว / กรม', colors: ['#ffffff', '#132257', '#7a8791'] }
+        ],
+        anime: [
+            { id: 'anime-dragonball', name: 'Dragon Ball', note: 'ส้ม / น้ำเงิน', colors: ['#f57c00', '#1e40af', '#facc15'] },
+            { id: 'anime-onepiece', name: 'One Piece', note: 'ฟ้า / แดง', colors: ['#0284c7', '#dc2626', '#fbbf24'] },
+            { id: 'anime-naruto', name: 'Naruto', note: 'ส้ม / ดำ', colors: ['#f97316', '#111827', '#2563eb'] },
+            { id: 'anime-demonslayer', name: 'ดาบพิฆาตอสูร', note: 'เขียว / ดำ', colors: ['#16a34a', '#111827', '#dc2626'] },
+            { id: 'anime-jujutsu', name: 'Jujutsu Kaisen', note: 'ม่วง / ดำ', colors: ['#7c3aed', '#111827', '#38bdf8'] },
+            { id: 'anime-gundam', name: 'Gundam', note: 'ขาว / น้ำเงิน / แดง', colors: ['#ffffff', '#2563eb', '#ef4444'] }
+        ],
+        recommended: [
+            { id: 'theme-teams', name: 'Microsoft Teams', note: 'มาตรฐานระบบ', colors: ['#6264a7', '#ffffff', '#464775'] },
+            { id: 'theme-logistics', name: 'Logistics Night', note: 'เข้มสำหรับศูนย์ควบคุม', colors: ['#111827', '#38bdf8', '#22c55e'] },
+            { id: 'theme-factory', name: 'Factory Steel', note: 'เทาอุตสาหกรรม', colors: ['#334155', '#f8fafc', '#f59e0b'] },
+            { id: 'theme-forest', name: 'Green Route', note: 'เขียวสบายตา', colors: ['#14532d', '#ecfdf5', '#22c55e'] },
+            { id: 'theme-sunset', name: 'Sunset Dispatch', note: 'อบอุ่นสำหรับงานจัดรถ', colors: ['#7c2d12', '#fff7ed', '#f97316'] },
+            { id: 'theme-minimal', name: 'Minimal White', note: 'สว่าง อ่านง่าย', colors: ['#f8fafc', '#111827', '#64748b'] }
+        ]
+    };
+
+    function loadUserProfile() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(USER_PROFILE_KEY) || '{}');
+            return parsed && typeof parsed === 'object' ? parsed : {};
+        } catch (error) {
+            localStorage.removeItem(USER_PROFILE_KEY);
+            return {};
+        }
+    }
+
+    function saveUserProfile(updates) {
+        const nextProfile = { ...loadUserProfile(), ...updates };
+        localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(nextProfile));
+        applyUserProfile(nextProfile);
+        return nextProfile;
+    }
+
+    function setProfilePhoto(photoDataUrl) {
+        [profileAvatarPreview, profilePhotoLarge].forEach((img) => {
+            if (!img) return;
+            if (photoDataUrl) {
+                img.src = photoDataUrl;
+                img.hidden = false;
+            } else {
+                img.removeAttribute('src');
+                img.hidden = true;
+            }
+        });
+        document.body.classList.toggle('has-profile-photo', Boolean(photoDataUrl));
+    }
+
+    function applyProfileTheme(themeId) {
+        document.documentElement.dataset.profileTheme = themeId || 'theme-teams';
+        document.querySelectorAll('[data-profile-theme-option]').forEach((button) => {
+            button.classList.toggle('active', button.dataset.profileThemeOption === (themeId || 'theme-teams'));
+        });
+    }
+
+    function applyUserProfile(profile = loadUserProfile()) {
+        setProfilePhoto(profile.photo || '');
+        applyProfileTheme(profile.theme || 'theme-teams');
+    }
+
+    function renderThemeGrid(container, themes) {
+        if (!container) return;
+        container.innerHTML = themes.map((theme) => `
+            <button type="button" class="profile-theme-card" data-profile-theme-option="${escapeHtml(theme.id)}">
+                <span class="theme-swatches">
+                    ${theme.colors.map((color) => `<span style="background:${escapeHtml(color)}"></span>`).join('')}
+                </span>
+                <strong>${escapeHtml(theme.name)}</strong>
+                <small>${escapeHtml(theme.note)}</small>
+            </button>
+        `).join('');
+    }
+
+    function renderProfileThemes() {
+        renderThemeGrid(footballThemeGrid, profileThemes.football);
+        renderThemeGrid(animeThemeGrid, profileThemes.anime);
+        renderThemeGrid(recommendedThemeGrid, profileThemes.recommended);
+        applyProfileTheme(loadUserProfile().theme || 'theme-teams');
     }
 
     function loadMenuPermissions() {
@@ -742,6 +857,88 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    if (btnOpenProfile) {
+        btnOpenProfile.addEventListener('click', () => {
+            navButtons.forEach((button) => button.classList.remove('active'));
+            activateSection('profile-settings', null);
+        });
+    }
+
+    renderProfileThemes();
+    applyUserProfile();
+
+    document.addEventListener('click', (event) => {
+        const themeButton = event.target.closest('[data-profile-theme-option]');
+        if (!themeButton) return;
+        saveUserProfile({ theme: themeButton.dataset.profileThemeOption });
+    });
+
+    if (btnResetProfileTheme) {
+        btnResetProfileTheme.addEventListener('click', () => {
+            saveUserProfile({ theme: 'theme-teams' });
+        });
+    }
+
+    if (profilePhotoInput) {
+        profilePhotoInput.addEventListener('change', () => {
+            const file = profilePhotoInput.files?.[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                alert('กรุณาเลือกไฟล์รูปภาพ');
+                profilePhotoInput.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+                saveUserProfile({ photo: reader.result });
+                profilePhotoInput.value = '';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    if (btnRemoveProfilePhoto) {
+        btnRemoveProfilePhoto.addEventListener('click', () => {
+            saveUserProfile({ photo: '' });
+        });
+    }
+
+    if (formProfilePassword) {
+        formProfilePassword.addEventListener('submit', async () => {
+            const session = getLoginSession();
+            const password = profileNewPasswordInput?.value.trim() || '';
+            const confirmPassword = profileConfirmPasswordInput?.value.trim() || '';
+            if (!session?.username) {
+                alert('ยังไม่มีผู้ใช้งานที่ล็อกอินอยู่');
+                return;
+            }
+            if (password.length < 4) {
+                alert('รหัสผ่านควรมีอย่างน้อย 4 ตัวอักษร');
+                return;
+            }
+            if (password !== confirmPassword) {
+                alert('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+                return;
+            }
+            if (!window.TransportApi || typeof window.TransportApi.createUser !== 'function') {
+                alert('ยังเชื่อมต่อ API สำหรับเปลี่ยนรหัสผ่านไม่ได้');
+                return;
+            }
+            try {
+                await window.TransportApi.createUser({
+                    employeeId: session.username,
+                    name: session.displayName || session.username,
+                    password
+                });
+                profileNewPasswordInput.value = '';
+                profileConfirmPasswordInput.value = '';
+                alert('เปลี่ยนรหัสผ่านแล้ว');
+            } catch (error) {
+                alert(error.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ');
+            }
+        });
+    }
 
     // -- Sidebar Accordion Logic --
     const moduleTitles = document.querySelectorAll('.nav-module-title');
@@ -1445,9 +1642,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const employeePermissionOptions = document.getElementById('employee-permission-options');
     const employeePermissionSearchResults = document.getElementById('employee-permission-search-results');
     const employeePermissionList = document.getElementById('employee-permission-list');
+    const employeePermissionPageInfo = document.getElementById('employee-permission-page-info');
+    const btnEmployeePermissionPrev = document.getElementById('btn-employee-permission-prev');
+    const btnEmployeePermissionNext = document.getElementById('btn-employee-permission-next');
     const btnFillCurrentEmployeePermission = document.getElementById('btn-fill-current-employee-permission');
     let permissionEmployeeCache = [];
     let permissionEmployeeSearchTimer = null;
+    let employeePermissionPage = 1;
+    let employeePermissionTotalPages = 1;
+    let employeePermissionTotalRows = 0;
+    let employeePermissionCachePage = 0;
+    const EMPLOYEE_PERMISSION_PAGE_SIZE = 100;
 
     function createPermissionRoleId(name) {
         const normalized = String(name || '').trim().toLowerCase()
@@ -1510,12 +1715,103 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
+    function getEmployeePermissionRows(assignments) {
+        const roleMap = new Map(loadPermissionRoles().map((role) => [role.id, role]));
+        const employeeMap = new Map();
+        const hiddenEmployeeIds = new Set(loadHiddenEmployeePermissions());
+        const pageEmployeeIds = new Set(
+            permissionEmployeeCache
+                .map((employee) => normalizeEmployeeCode(employee.employeeId))
+                .filter(Boolean)
+        );
+
+        Object.values(assignments || {}).forEach((assignment) => {
+            const employeeId = normalizeEmployeeCode(assignment.employeeId);
+            if (!employeeId || !isAllowedEmployeeCode(employeeId)) return;
+            const role = roleMap.get(assignment.roleId) || {};
+            employeeMap.set(employeeId, {
+                employeeId,
+                name: assignment.name || employeeId,
+                roleId: assignment.roleId || DEFAULT_EMPLOYEE_ROLE_ID,
+                roleName: assignment.roleName || role.name || 'พนักงาน',
+                menus: Array.isArray(assignment.menus) ? assignment.menus : (Array.isArray(role.menus) ? role.menus : []),
+                hasAssignment: true
+            });
+        });
+
+        const currentSession = getLoginSession();
+        const currentEmployeeId = normalizeEmployeeCode(currentSession?.username);
+        if (currentEmployeeId && !employeeMap.has(currentEmployeeId)) {
+            const existingAssignment = assignments?.[currentEmployeeId] || {};
+            const defaultRole = roleMap.get(existingAssignment.roleId || DEFAULT_EMPLOYEE_ROLE_ID) || {};
+            employeeMap.set(currentEmployeeId, {
+                employeeId: currentEmployeeId,
+                name: existingAssignment.name || currentSession.displayName || currentEmployeeId,
+                roleId: existingAssignment.roleId || DEFAULT_EMPLOYEE_ROLE_ID,
+                roleName: existingAssignment.roleName || defaultRole.name || 'พนักงาน',
+                menus: Array.isArray(existingAssignment.menus)
+                    ? existingAssignment.menus
+                    : (Array.isArray(defaultRole.menus) ? defaultRole.menus : DEFAULT_EMPLOYEE_MENU_IDS),
+                hasAssignment: Boolean(assignments?.[currentEmployeeId])
+            });
+        }
+
+        permissionEmployeeCache.forEach((employee) => {
+            const employeeId = normalizeEmployeeCode(employee.employeeId);
+            if (!employeeId || !isAllowedEmployeeCode(employeeId) || employeeMap.has(employeeId) || hiddenEmployeeIds.has(employeeId)) return;
+            const defaultRole = roleMap.get(DEFAULT_EMPLOYEE_ROLE_ID) || {};
+            employeeMap.set(employeeId, {
+                employeeId,
+                name: employee.name || employeeId,
+                roleId: DEFAULT_EMPLOYEE_ROLE_ID,
+                roleName: defaultRole.name || 'พนักงาน',
+                menus: Array.isArray(defaultRole.menus) ? defaultRole.menus : DEFAULT_EMPLOYEE_MENU_IDS,
+                hasAssignment: false
+            });
+        });
+
+        return Array.from(employeeMap.values())
+            .filter((employee) => !pageEmployeeIds.size || pageEmployeeIds.has(normalizeEmployeeCode(employee.employeeId)))
+            .sort((a, b) => normalizeEmployeeCode(a.employeeId).localeCompare(normalizeEmployeeCode(b.employeeId), 'th'));
+    }
+
+    function loadHiddenEmployeePermissions() {
+        try {
+            const parsed = JSON.parse(localStorage.getItem(EMPLOYEE_PERMISSION_HIDDEN_KEY) || '[]');
+            return Array.isArray(parsed) ? parsed.map(normalizeEmployeeCode).filter(Boolean) : [];
+        } catch (error) {
+            localStorage.removeItem(EMPLOYEE_PERMISSION_HIDDEN_KEY);
+            return [];
+        }
+    }
+
+    function saveHiddenEmployeePermissions(employeeIds) {
+        localStorage.setItem(
+            EMPLOYEE_PERMISSION_HIDDEN_KEY,
+            JSON.stringify([...new Set((employeeIds || []).map(normalizeEmployeeCode).filter(Boolean))])
+        );
+    }
+
+    function hideEmployeePermissionRow(employeeId) {
+        const normalized = normalizeEmployeeCode(employeeId);
+        if (!normalized) return;
+        const hidden = loadHiddenEmployeePermissions();
+        if (!hidden.includes(normalized)) {
+            hidden.push(normalized);
+            saveHiddenEmployeePermissions(hidden);
+        }
+    }
+
+    function unhideEmployeePermissionRow(employeeId) {
+        const normalized = normalizeEmployeeCode(employeeId);
+        if (!normalized) return;
+        saveHiddenEmployeePermissions(loadHiddenEmployeePermissions().filter((item) => item !== normalized));
+    }
+
     function renderEmployeePermissionList() {
         if (!employeePermissionList) return;
         const assignments = loadEmployeeRolePermissions();
-        const entries = Object.values(assignments)
-            .filter((item) => normalizeEmployeeCode(item.employeeId))
-            .sort((a, b) => normalizeEmployeeCode(a.employeeId).localeCompare(normalizeEmployeeCode(b.employeeId), 'th'));
+        const entries = getEmployeePermissionRows(assignments);
 
         if (!entries.length) {
             employeePermissionList.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">ยังไม่มีการกำหนดสิทธิ์พนักงาน</td></tr>';
@@ -1540,7 +1836,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" class="btn btn-secondary btn-sm" data-employee-permission-action="edit" data-employee-id="${escapeHtml(normalizeEmployeeCode(assignment.employeeId))}">
                                 <i class="fa-solid fa-pen-to-square"></i> แก้ไข
                             </button>
-                            <button type="button" class="btn-icon text-danger" data-employee-permission-action="delete" data-employee-id="${escapeHtml(normalizeEmployeeCode(assignment.employeeId))}" title="ลบสิทธิ์พนักงาน">
+                            <button type="button" class="btn-icon text-danger" data-employee-permission-action="delete" data-employee-id="${escapeHtml(normalizeEmployeeCode(assignment.employeeId))}" title="${assignment.hasAssignment ? 'ลบสิทธิ์พนักงาน' : 'ซ่อนจากตารางสิทธิ์ TMS'}">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
@@ -1561,21 +1857,101 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function loadPermissionEmployees() {
-        if (permissionEmployeeCache.length) return permissionEmployeeCache;
+    async function loadPermissionEmployees({ page = employeePermissionPage, force = false } = {}) {
+        const requestedPage = Math.max(Number(page) || 1, 1);
+        if (!force && permissionEmployeeCache.length && employeePermissionCachePage === requestedPage) {
+            return permissionEmployeeCache;
+        }
         if (!window.TransportApi || typeof window.TransportApi.listUsers !== 'function') {
             return [];
         }
         try {
-            const rows = await window.TransportApi.listUsers();
-            permissionEmployeeCache = (Array.isArray(rows) ? rows : [])
+            employeePermissionPage = requestedPage;
+            renderEmployeePermissionLoading();
+            updateEmployeePermissionPagination(true);
+            const result = await window.TransportApi.listUsers('', {
+                page: requestedPage,
+                limit: EMPLOYEE_PERMISSION_PAGE_SIZE
+            });
+            const rows = Array.isArray(result) ? result : (Array.isArray(result?.rows) ? result.rows : []);
+            employeePermissionPage = Number(result?.page || requestedPage || 1);
+            employeePermissionTotalPages = Number(result?.totalPages || 1);
+            employeePermissionTotalRows = Number(result?.total || rows.length || 0);
+            employeePermissionCachePage = employeePermissionPage;
+            permissionEmployeeCache = rows
                 .map(normalizeEmployeeRow)
-                .filter((employee) => employee.employeeId);
+                .filter((employee) => employee.employeeId && isAllowedEmployeeCode(employee.employeeId));
         } catch (error) {
             console.warn('Employee search unavailable:', error.message);
             permissionEmployeeCache = [];
+            employeePermissionTotalPages = 1;
+            employeePermissionTotalRows = 0;
+            employeePermissionCachePage = 0;
         }
+        updateEmployeePermissionPagination(false);
         return permissionEmployeeCache;
+    }
+
+    async function refreshPermissionEmployees(page = employeePermissionPage) {
+        employeePermissionPage = Math.max(Number(page) || 1, 1);
+        permissionEmployeeCache = [];
+        employeePermissionCachePage = 0;
+        return loadPermissionEmployees({ page: employeePermissionPage, force: true });
+    }
+
+    function renderEmployeePermissionLoading() {
+        if (!employeePermissionList) return;
+        employeePermissionList.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">กำลังโหลดรายชื่อพนักงาน...</td></tr>';
+    }
+
+    function updateEmployeePermissionPagination(isLoading = false) {
+        if (employeePermissionPageInfo) {
+            const start = employeePermissionTotalRows ? ((employeePermissionPage - 1) * EMPLOYEE_PERMISSION_PAGE_SIZE) + 1 : 0;
+            const end = employeePermissionTotalRows ? Math.min(employeePermissionPage * EMPLOYEE_PERMISSION_PAGE_SIZE, employeePermissionTotalRows) : 0;
+            employeePermissionPageInfo.textContent = isLoading
+                ? `กำลังโหลดหน้า ${employeePermissionPage}...`
+                : `หน้า ${employeePermissionPage} / ${employeePermissionTotalPages} (${start}-${end} จาก ${employeePermissionTotalRows})`;
+        }
+        if (btnEmployeePermissionPrev) {
+            btnEmployeePermissionPrev.disabled = isLoading || employeePermissionPage <= 1;
+        }
+        if (btnEmployeePermissionNext) {
+            btnEmployeePermissionNext.disabled = isLoading || employeePermissionPage >= employeePermissionTotalPages;
+        }
+    }
+
+    async function searchPermissionEmployeesFromServer(query) {
+        const normalizedQuery = String(query || '').trim();
+        if (!normalizedQuery || !window.TransportApi || typeof window.TransportApi.listUsers !== 'function') {
+            return [];
+        }
+
+        try {
+            const rows = await window.TransportApi.listUsers(normalizedQuery);
+            const employees = (Array.isArray(rows) ? rows : [])
+                .map(normalizeEmployeeRow)
+                .filter((employee) => employee.employeeId && isAllowedEmployeeCode(employee.employeeId));
+
+            if (employees.length) {
+                const existingIds = new Set(permissionEmployeeCache.map((employee) => employee.employeeId));
+                employees.forEach((employee) => {
+                    if (!existingIds.has(employee.employeeId)) {
+                        permissionEmployeeCache.push(employee);
+                        existingIds.add(employee.employeeId);
+                    }
+                });
+                renderEmployeePermissionList();
+            }
+            return employees;
+        } catch (error) {
+            console.warn('Direct employee search unavailable:', error.message);
+            return [];
+        }
+    }
+
+    async function hydrateEmployeePermissionList() {
+        await refreshPermissionEmployees();
+        renderEmployeePermissionList();
     }
 
     function fillEmployeePermissionFromDb(employee) {
@@ -1617,12 +1993,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const employees = await loadPermissionEmployees();
         const terms = query.split(/\s+/).filter(Boolean);
         const matches = employees.filter((employee) => {
+            if (!isAllowedEmployeeCode(employee.employeeId)) return false;
             const haystack = `${employee.employeeId} ${employee.name} ${employee.department} ${employee.position} ${employee.branch}`.toLowerCase();
             return terms.every((term) => haystack.includes(term));
         });
-        renderEmployeeSearchOptions(matches);
+        let allMatches = matches;
+        if (!matches.some((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput?.value))) {
+            const serverMatches = await searchPermissionEmployeesFromServer(query);
+            const combined = new Map(matches.map((employee) => [employee.employeeId, employee]));
+            serverMatches.forEach((employee) => combined.set(employee.employeeId, employee));
+            allMatches = Array.from(combined.values());
+        }
+        renderEmployeeSearchOptions(allMatches);
 
-        const exact = matches.find((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput?.value));
+        const exact = allMatches.find((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput?.value));
         if (exact && employeePermissionNameInput && !employeePermissionNameInput.value.trim()) {
             employeePermissionNameInput.value = exact.name || exact.employeeId;
         }
@@ -1638,6 +2022,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderPermissionRoleList();
         renderPermissionRoleSelect();
         renderEmployeePermissionList();
+        hydrateEmployeePermissionList();
     }
 
     async function mirrorAssignmentToApprovalPermissions(assignment) {
@@ -1817,6 +2202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatedAt: new Date().toISOString()
             };
             assignments[employeeId] = assignment;
+            unhideEmployeePermissionRow(employeeId);
             saveEmployeeRolePermissions(assignments);
             await mirrorAssignmentToApprovalPermissions(assignment);
             renderPermissionManagement();
@@ -1833,7 +2219,11 @@ document.addEventListener('DOMContentLoaded', () => {
         employeePermissionIdInput.addEventListener('input', queuePermissionEmployeeSearch);
         employeePermissionIdInput.addEventListener('change', async () => {
             const employees = await loadPermissionEmployees();
-            const selected = employees.find((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput.value));
+            let selected = employees.find((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput.value));
+            if (!selected) {
+                const directMatches = await searchPermissionEmployeesFromServer(employeePermissionIdInput.value);
+                selected = directMatches.find((employee) => employee.employeeId === normalizeEmployeeCode(employeePermissionIdInput.value));
+            }
             if (selected) fillEmployeePermissionFromDb(selected);
         });
     }
@@ -1855,6 +2245,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (btnEmployeePermissionPrev) {
+        btnEmployeePermissionPrev.addEventListener('click', async () => {
+            if (employeePermissionPage <= 1) return;
+            const nextPage = employeePermissionPage - 1;
+            await refreshPermissionEmployees(nextPage);
+            renderEmployeePermissionList();
+        });
+    }
+
+    if (btnEmployeePermissionNext) {
+        btnEmployeePermissionNext.addEventListener('click', async () => {
+            if (employeePermissionPage >= employeePermissionTotalPages) return;
+            const nextPage = employeePermissionPage + 1;
+            await refreshPermissionEmployees(nextPage);
+            renderEmployeePermissionList();
+        });
+    }
+
     if (btnFillCurrentEmployeePermission) {
         btnFillCurrentEmployeePermission.addEventListener('click', () => {
             const session = getLoginSession();
@@ -1873,8 +2281,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!button) return;
             const employeeId = normalizeEmployeeCode(button.dataset.employeeId);
             const assignments = loadEmployeeRolePermissions();
-            const assignment = assignments[employeeId];
-            if (!assignment) return;
+            const employeeFromDb = permissionEmployeeCache.find((employee) => normalizeEmployeeCode(employee.employeeId) === employeeId);
+            const defaultRole = loadPermissionRoles().find((role) => role.id === DEFAULT_EMPLOYEE_ROLE_ID) || {};
+            const assignment = assignments[employeeId] || {
+                employeeId,
+                name: employeeFromDb?.name || employeeId,
+                roleId: DEFAULT_EMPLOYEE_ROLE_ID,
+                roleName: defaultRole.name || 'พนักงาน',
+                menus: Array.isArray(defaultRole.menus) ? defaultRole.menus : DEFAULT_EMPLOYEE_MENU_IDS
+            };
 
             if (button.dataset.employeePermissionAction === 'edit') {
                 if (employeePermissionIdInput) employeePermissionIdInput.value = assignment.employeeId || '';
@@ -1885,10 +2300,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (button.dataset.employeePermissionAction === 'delete') {
-                const confirmed = window.confirm(`ลบสิทธิ์ของ ${employeeId} ใช่ไหม?`);
+                const confirmed = window.confirm(`ลบสิทธิ์ที่ตั้งไว้ของ ${employeeId} ใช่ไหม? รายชื่อพนักงานจาก PostgreSQL จะยังแสดงอยู่`);
                 if (!confirmed) return;
                 delete assignments[employeeId];
                 saveEmployeeRolePermissions(assignments);
+                if (!assignment.hasAssignment) {
+                    hideEmployeePermissionRow(employeeId);
+                }
 
                 const oldPermissions = loadMenuPermissions();
                 delete oldPermissions[employeeId];
@@ -2834,11 +3252,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         deliveryNoteItemsBody.innerHTML = deliveryNoteItems.map((item, index) => `
             <tr>
-                <td>${escapeHtml(item.sku)}</td>
-                <td>${escapeHtml(item.name)}<br><small class="text-secondary">${escapeHtml(item.dim)}</small></td>
-                <td>${formatDeliveryNumber(item.qty)} ${escapeHtml(item.unit)}</td>
-                <td>${formatDeliveryNumber(item.totalWeightKg)} กก.</td>
-                <td><button type="button" class="btn-icon text-danger" onclick="removeDeliveryNoteItem(${index})"><i class="fa-solid fa-trash"></i></button></td>
+                <td class="delivery-item-code-cell"><span>${escapeHtml(item.sku)}</span></td>
+                <td class="delivery-item-name-cell">
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <small class="text-secondary">${escapeHtml(item.dim)}</small>
+                </td>
+                <td class="delivery-item-number-cell">${formatDeliveryNumber(item.qty)} ${escapeHtml(item.unit)}</td>
+                <td class="delivery-item-number-cell">${formatDeliveryNumber(item.totalWeightKg)} กก.</td>
+                <td class="delivery-item-action-cell"><button type="button" class="btn-icon text-danger" onclick="removeDeliveryNoteItem(${index})"><i class="fa-solid fa-trash"></i></button></td>
             </tr>
         `).join('');
         updateDeliveryTotals();
@@ -7387,13 +7808,169 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose globally for filters
     window.renderScheduleTable = renderScheduleTable;
 
-    // -- Fleet Management (Maintenance & Fuel) --
-    const btnAddMaintenance = document.getElementById('btn-add-maintenance');
-    if (btnAddMaintenance) {
-        btnAddMaintenance.addEventListener('click', () => {
-            alert('เปิดฟอร์มกำหนดรอบการต่ออายุ... \n[Feature logic to be connected with DB]');
+    // -- Fleet Management (Renewal, Maintenance & Fuel) --
+    const renewalStorageKey = 'tms_renewal_entries_v1';
+    const renewalForm = document.getElementById('form-renewal-entry');
+    const renewalTypeInput = document.getElementById('renewal-entry-type');
+    const renewalPlateInput = document.getElementById('renewal-entry-plate');
+    const renewalTitleInput = document.getElementById('renewal-entry-title');
+    const renewalRefInput = document.getElementById('renewal-entry-ref');
+    const renewalDateInput = document.getElementById('renewal-entry-date');
+    const renewalReminderInput = document.getElementById('renewal-entry-reminder');
+    const renewalTables = {
+        maintenance: document.getElementById('maintenance-list-body'),
+        tax: document.getElementById('tax-prb-list-body'),
+        insurance: document.getElementById('accident-insurance-list-body')
+    };
+
+    const defaultRenewalEntries = [
+        { id: 'sample-maintenance-1', type: 'maintenance', plate: '6W-8492', title: 'เปลี่ยนน้ำมันเครื่อง', ref: '50,000 กม. / 15/08/2026', date: '2026-02-15', reminderDays: 30 },
+        { id: 'sample-maintenance-2', type: 'maintenance', plate: '4W-1122', title: 'ตรวจเช็คระบบเบรก', ref: '35,000 กม. / 10/07/2026', date: '2026-01-10', reminderDays: 45 },
+        { id: 'sample-tax-1', type: 'tax', plate: '6W-8492', title: 'ภาษีรถยนต์ / พรบ.', ref: '', date: '2026-09-30', reminderDays: 30 },
+        { id: 'sample-tax-2', type: 'tax', plate: '4W-1122', title: 'พรบ.', ref: '', date: '2026-06-15', reminderDays: 45 },
+        { id: 'sample-insurance-1', type: 'insurance', plate: '6W-8492', title: 'ระบุภายหลัง', ref: '-', date: '2026-12-31', reminderDays: 30 },
+        { id: 'sample-insurance-2', type: 'insurance', plate: '4W-1122', title: 'ระบุภายหลัง', ref: '-', date: '2026-07-20', reminderDays: 30 }
+    ];
+
+    function loadRenewalEntries() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(renewalStorageKey) || 'null');
+            return Array.isArray(saved) && saved.length ? saved : [...defaultRenewalEntries];
+        } catch (error) {
+            console.warn('Unable to load renewal entries:', error);
+            return [...defaultRenewalEntries];
+        }
+    }
+
+    let renewalEntries = loadRenewalEntries();
+
+    function saveRenewalEntries() {
+        localStorage.setItem(renewalStorageKey, JSON.stringify(renewalEntries));
+    }
+
+    function formatDisplayDate(value) {
+        if (!value) return '-';
+        const date = new Date(`${value}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function getRenewalStatus(entry) {
+        const dueDate = new Date(`${entry.date}T00:00:00`);
+        if (Number.isNaN(dueDate.getTime())) {
+            return { text: 'ไม่ระบุ', bg: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8' };
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((dueDate - today) / 86400000);
+        const reminderDays = Number(entry.reminderDays || 30);
+        if (diffDays < 0) return { text: 'เกินกำหนด', bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' };
+        if (diffDays <= reminderDays) return { text: 'ใกล้ถึงกำหนด', bg: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b' };
+        return { text: 'ปกติ', bg: 'rgba(16, 185, 129, 0.2)', color: '#10b981' };
+    }
+
+    function renewalStatusBadge(entry) {
+        const status = getRenewalStatus(entry);
+        return `<span class="badge" style="background: ${status.bg}; color: ${status.color};">${status.text}</span>`;
+    }
+
+    function renewalActionCell(entry) {
+        return `
+            <button class="btn-icon text-danger" data-renewal-delete="${entry.id}" title="ลบรายการ">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        `;
+    }
+
+    function renderRenewalEntries() {
+        if (!renewalTables.maintenance || !renewalTables.tax || !renewalTables.insurance) return;
+
+        renewalTables.maintenance.innerHTML = renewalEntries
+            .filter((entry) => entry.type === 'maintenance')
+            .map((entry) => `
+                <tr>
+                    <td>${entry.plate || '-'}</td>
+                    <td>${entry.title || '-'}</td>
+                    <td>${formatDisplayDate(entry.date)}</td>
+                    <td>${entry.ref || '-'}</td>
+                    <td>${renewalStatusBadge(entry)}</td>
+                    <td>${renewalActionCell(entry)}</td>
+                </tr>
+            `).join('');
+
+        renewalTables.tax.innerHTML = renewalEntries
+            .filter((entry) => entry.type === 'tax')
+            .map((entry) => `
+                <tr>
+                    <td>${entry.plate || '-'}</td>
+                    <td>${entry.title || 'ภาษีรถยนต์ / พรบ.'}</td>
+                    <td>${formatDisplayDate(entry.date)}</td>
+                    <td>${entry.reminderDays || 30} วัน</td>
+                    <td>${renewalStatusBadge(entry)}</td>
+                    <td>${renewalActionCell(entry)}</td>
+                </tr>
+            `).join('');
+
+        renewalTables.insurance.innerHTML = renewalEntries
+            .filter((entry) => entry.type === 'insurance')
+            .map((entry) => `
+                <tr>
+                    <td>${entry.plate || '-'}</td>
+                    <td>${entry.title || 'ระบุภายหลัง'}</td>
+                    <td>${entry.ref || '-'}</td>
+                    <td>${formatDisplayDate(entry.date)}</td>
+                    <td>${renewalStatusBadge(entry)}</td>
+                    <td>${renewalActionCell(entry)}</td>
+                </tr>
+            `).join('');
+    }
+
+    if (renewalForm) {
+        renewalForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const entry = {
+                id: `renewal-${Date.now()}`,
+                type: renewalTypeInput.value,
+                plate: renewalPlateInput.value.trim(),
+                title: renewalTitleInput.value.trim(),
+                ref: renewalRefInput.value.trim(),
+                date: renewalDateInput.value,
+                reminderDays: Number(renewalReminderInput.value || 30)
+            };
+
+            if (!entry.plate || !entry.date) {
+                alert('กรุณากรอกทะเบียนรถและวันที่');
+                return;
+            }
+
+            renewalEntries = [entry, ...renewalEntries];
+            saveRenewalEntries();
+            renderRenewalEntries();
+            renewalForm.reset();
+            renewalReminderInput.value = 30;
+            alert('เพิ่มรายการต่ออายุแล้ว');
         });
     }
+
+    document.addEventListener('click', (event) => {
+        const deleteButton = event.target.closest('[data-renewal-delete]');
+        if (!deleteButton) return;
+        const id = deleteButton.getAttribute('data-renewal-delete');
+        renewalEntries = renewalEntries.filter((entry) => entry.id !== id);
+        saveRenewalEntries();
+        renderRenewalEntries();
+        alert('ลบรายการต่ออายุแล้ว');
+    });
+
+    const btnAddMaintenance = document.getElementById('btn-add-maintenance');
+    if (btnAddMaintenance && renewalForm) {
+        btnAddMaintenance.addEventListener('click', () => {
+            renewalPlateInput.focus();
+        });
+    }
+
+    renderRenewalEntries();
 
     const btnAddFuelLog = document.getElementById('btn-add-fuel-log');
     if (btnAddFuelLog) {
