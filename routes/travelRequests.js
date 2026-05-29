@@ -349,6 +349,7 @@ module.exports = function createTravelRequestsRouter({ mysqlPool }) {
     const { id } = req.params;
     const actorName = normalizeActorName(req.body.approverName || req.body.actorName || req.body.updatedBy);
     const actorCode = normalizeActorName(req.body.employeeCode || req.body.actorCode);
+    const comment = normalizeOptionalText(req.body.comment || req.body.approvalComment || req.body.rejectionComment, 1000);
     const signedBy = actorName || actorCode;
     const statusColumns = {
       hr: ['manager_approved_by', 'manager_approved_at'],
@@ -365,6 +366,12 @@ module.exports = function createTravelRequestsRouter({ mysqlPool }) {
     if (approvalColumns && signedBy) {
       query += `, ${approvalColumns[0]} = ?, ${approvalColumns[1]} = NOW()`;
       params.push(signedBy);
+    }
+    if (comment) {
+      query += req.body.status === 'rejected'
+        ? ', rejection_comment = ?'
+        : ', approval_comment = ?';
+      params.push(comment);
     }
 
     query += ' WHERE id = ?';

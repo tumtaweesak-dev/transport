@@ -100,6 +100,8 @@ async function ensureMysqlSchema() {
   await ensureMysqlColumn('travel_requests', 'accounting_paid_at', 'DATETIME');
   await ensureMysqlColumn('travel_requests', 'rejected_by', 'VARCHAR(200)');
   await ensureMysqlColumn('travel_requests', 'rejected_at', 'DATETIME');
+  await ensureMysqlColumn('travel_requests', 'approval_comment', 'TEXT');
+  await ensureMysqlColumn('travel_requests', 'rejection_comment', 'TEXT');
   await ensureMysqlColumn('travel_requests', 'job_description', 'TEXT');
   await ensureMysqlColumn('travel_requests', 'vehicle_type', 'VARCHAR(30)');
   await ensureMysqlColumn('travel_requests', 'vehicle_plate', 'VARCHAR(100)');

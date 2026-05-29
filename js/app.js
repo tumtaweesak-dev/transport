@@ -2406,6 +2406,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let pttFuelPrices = null;
 
         if (!fuelTypeSelect || !fuelPriceInput) return;
+        fuelPriceInput.readOnly = true;
+        fuelPriceInput.setAttribute('readonly', 'readonly');
+        fuelPriceInput.setAttribute('aria-readonly', 'true');
+        fuelPriceInput.tabIndex = -1;
+        fuelPriceInput.classList.add('locked-calculated-field');
 
         const setFuelPriceStatus = (message, state = '') => {
             if (!fuelPriceStatus) return;
@@ -2493,7 +2498,97 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Travel Plan: Dynamic Travelers
     const btnAddTraveler = document.getElementById('btn-add-traveler');
     const travelersList = document.getElementById('travelers-list');
+    const travelEmployeeOptions = document.getElementById('travel-employee-options');
     let travelerCount = 1;
+    let travelEmployeeCache = [];
+    let travelEmployeeSearchTimer = null;
+
+    function getTravelerInputs(card) {
+        const inputs = card ? Array.from(card.querySelectorAll('input')) : [];
+        return {
+            idInput: card?.querySelector('.traveler-employee-id') || inputs[0],
+            nameInput: card?.querySelector('.traveler-employee-name') || inputs[1],
+            departmentInput: inputs[2],
+            positionInput: inputs[3],
+            phoneInput: inputs[4]
+        };
+    }
+
+    function isTravelerSearchInput(input) {
+        const card = input?.closest('.traveler-card');
+        if (!card) return false;
+        const { idInput, nameInput } = getTravelerInputs(card);
+        return input === idInput || input === nameInput;
+    }
+
+    function enhanceTravelerCard(card) {
+        const { idInput, nameInput } = getTravelerInputs(card);
+        if (idInput) {
+            idInput.classList.add('traveler-employee-id');
+            idInput.setAttribute('list', 'travel-employee-options');
+            idInput.setAttribute('autocomplete', 'off');
+        }
+        if (nameInput) {
+            nameInput.classList.add('traveler-employee-name');
+            nameInput.setAttribute('list', 'travel-employee-options');
+            nameInput.setAttribute('autocomplete', 'off');
+        }
+    }
+
+    function fillTravelerFromEmployee(card, employee) {
+        if (!card || !employee) return;
+        const { idInput, nameInput, departmentInput, positionInput, phoneInput } = getTravelerInputs(card);
+        if (idInput) idInput.value = employee.employeeId || '';
+        if (nameInput) nameInput.value = employee.name || '';
+        if (departmentInput && employee.department) departmentInput.value = employee.department;
+        if (positionInput && employee.position) positionInput.value = employee.position;
+        if (phoneInput && employee.phone) phoneInput.value = employee.phone;
+    }
+
+    function renderTravelEmployeeOptions(employees = []) {
+        if (!travelEmployeeOptions) return;
+        const options = [];
+        employees.forEach((employee) => {
+            if (employee.employeeId) {
+                options.push(`<option value="${escapeHtml(employee.employeeId)}" label="${escapeHtml(employee.name || '')}"></option>`);
+            }
+            if (employee.name) {
+                options.push(`<option value="${escapeHtml(employee.name)}" label="${escapeHtml(employee.employeeId || '')}"></option>`);
+            }
+        });
+        travelEmployeeOptions.innerHTML = options.join('');
+    }
+
+    async function loadTravelEmployeeOptions(query) {
+        const keyword = String(query || '').trim();
+        if (!keyword || keyword.length < 2 || !window.TransportApi?.listUsers) return;
+        try {
+            const result = await window.TransportApi.listUsers(keyword, { limit: 20 });
+            const rows = Array.isArray(result) ? result : (Array.isArray(result?.rows) ? result.rows : []);
+            travelEmployeeCache = rows.map(normalizeEmployeeRow).filter((employee) => employee.employeeId);
+            renderTravelEmployeeOptions(travelEmployeeCache);
+        } catch (error) {
+            console.warn('Travel employee search unavailable:', error.message);
+        }
+    }
+
+    function scheduleTravelEmployeeSearch(input) {
+        clearTimeout(travelEmployeeSearchTimer);
+        travelEmployeeSearchTimer = setTimeout(() => loadTravelEmployeeOptions(input?.value), 220);
+    }
+
+    function applySelectedTravelEmployee(input) {
+        const card = input?.closest('.traveler-card');
+        if (!card) return;
+        const value = String(input.value || '').trim().toLowerCase();
+        const employee = travelEmployeeCache.find((item) => (
+            String(item.employeeId || '').toLowerCase() === value
+            || String(item.name || '').toLowerCase() === value
+        ));
+        if (employee) fillTravelerFromEmployee(card, employee);
+    }
+
+    travelersList?.querySelectorAll('.traveler-card').forEach(enhanceTravelerCard);
 
     if (btnAddTraveler && travelersList) {
         btnAddTraveler.addEventListener('click', () => {
@@ -2537,11 +2632,24 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
         travelersList.appendChild(newTraveler);
+        enhanceTravelerCard(newTraveler);
         
         newTraveler.querySelector('.btn-remove-traveler').addEventListener('click', function() {
             newTraveler.remove();
             updateTravelerLabels();
         });
+        });
+    }
+
+    if (travelersList) {
+        travelersList.addEventListener('input', (event) => {
+            if (!isTravelerSearchInput(event.target)) return;
+            scheduleTravelEmployeeSearch(event.target);
+        });
+
+        travelersList.addEventListener('change', (event) => {
+            if (!isTravelerSearchInput(event.target)) return;
+            applySelectedTravelEmployee(event.target);
         });
     }
 
@@ -5254,6 +5362,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${renderTravelStatusSteps(request.status, request)}
             </div>
             <div class="travel-status-action-bar">
+                <button type="button" class="btn btn-primary btn-sm" data-preview-request-id="${escapeHtml(request.id)}">
+                    <i class="fa-solid fa-file-lines"></i> ดูเอกสาร
+                </button>
                 <button type="button" class="btn btn-secondary btn-sm" data-print-travel-status-id="${escapeHtml(request.id)}">
                     <i class="fa-solid fa-print"></i> ปริ้นเอ้าท์
                 </button>
@@ -5323,6 +5434,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>
                     <button type="button" class="btn btn-secondary btn-sm" data-status-request-id="${escapeHtml(request.id)}">
                         <i class="fa-solid fa-eye"></i> ดูสถานะ
+                    </button>
+                    <button type="button" class="btn btn-primary btn-sm" data-preview-request-id="${escapeHtml(request.id)}">
+                        <i class="fa-solid fa-file-lines"></i> ดูเอกสาร
                     </button>
                 </td>
             </tr>
@@ -5474,7 +5588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="preview-fuel-type">${escapeHtml(request.fuel_type || '-')}</div>
                         <div class="preview-fuel-calc-row">
                             <label for="preview-fuel-km">ระยะทาง</label>
-                            <input type="text" id="preview-fuel-km" inputmode="decimal" value="${escapeHtml(String(previewFuelQty))}">
+                            <input type="text" id="preview-fuel-km" inputmode="decimal" value="${escapeHtml(String(previewFuelQty))}" disabled>
                             <span>กม. x</span>
                             <strong id="preview-fuel-rate">${formatPrintMoney(previewFuelPrice)} บาท/กม.</strong>
                             <span>=</span>
@@ -5666,10 +5780,45 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    async function validateHrAccommodationBeforeApproval(reqId) {
+        if (!window.TransportApi?.getTravelRequest) return true;
+        const request = await window.TransportApi.getTravelRequest(reqId);
+        const stayDays = Number(request?.acc_qty) || 0;
+        const roomPrice = Number(request?.acc_price) || 0;
+        if (stayDays > 0 && roomPrice <= 0) {
+            alert('กรุณาระบุค่าห้องก่อนส่งต่อ MD');
+            openTravelRequestPreview(reqId);
+            return false;
+        }
+        return true;
+    }
+
+    function requestApprovalComment(reqId, actionText) {
+        const comment = prompt(`กรุณาใส่คอมเมนต์สำหรับ${actionText} TRV-${reqId}`);
+        if (comment === null) return null;
+        const trimmed = comment.trim();
+        if (!trimmed) {
+            alert('กรุณาใส่คอมเมนต์ก่อนดำเนินการ');
+            return null;
+        }
+        return trimmed;
+    }
+
     // Expose globally for inline onclick execution
     window.approveRequest = async function(reqId, nextStatus) {
         try {
-            await window.TransportApi.updateTravelRequestStatus(reqId, nextStatus, getCurrentApprovalActor());
+            if (nextStatus === 'md') {
+                const isAccommodationReady = await validateHrAccommodationBeforeApproval(reqId);
+                if (!isAccommodationReady) return;
+            }
+
+            const comment = requestApprovalComment(reqId, 'อนุมัติ');
+            if (comment === null) return;
+
+            await window.TransportApi.updateTravelRequestStatus(reqId, nextStatus, {
+                ...getCurrentApprovalActor(),
+                comment
+            });
 
             // Sync with local stepper if it's the current request being tracked
             // Note: In this version, we just show a generic alert and refresh tables
@@ -5701,9 +5850,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.rejectRequest = async function(reqId) {
         const confirmed = confirm(`ยืนยันไม่อนุมัติเอกสาร TRV-${reqId} ใช่ไหม?`);
         if (!confirmed) return;
+        const comment = requestApprovalComment(reqId, 'ไม่อนุมัติ');
+        if (comment === null) return;
 
         try {
-            await window.TransportApi.updateTravelRequestStatus(reqId, 'rejected', getCurrentApprovalActor());
+            await window.TransportApi.updateTravelRequestStatus(reqId, 'rejected', {
+                ...getCurrentApprovalActor(),
+                comment
+            });
             setStepState(step2, 'rejected');
             setStepState(step3, 'pending');
             setStepState(step4, 'pending');
@@ -6747,8 +6901,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // === 9. New Car Booking Flow Logic ===
-    let carBookings = [];
-    let carBookingCounter = 1000;
+    const CAR_BOOKINGS_STORAGE_KEY = 'tms_car_bookings_v1';
+
+    function loadSavedCarBookings() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CAR_BOOKINGS_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch (error) {
+            console.warn('Saved car bookings unavailable:', error.message);
+            return [];
+        }
+    }
+
+    function saveCarBookings() {
+        try {
+            localStorage.setItem(CAR_BOOKINGS_STORAGE_KEY, JSON.stringify(carBookings));
+        } catch (error) {
+            console.warn('Cannot save car bookings:', error.message);
+        }
+    }
+
+    let carBookings = loadSavedCarBookings();
+    let carBookingCounter = carBookings.reduce((max, booking) => {
+        const number = Number(String(booking?.id || '').replace(/\D/g, ''));
+        return Number.isFinite(number) ? Math.max(max, number) : max;
+    }, 1000);
     
     // Elements for Arrangement
     const carArrangementListView = document.getElementById('car-arrangement-list-view');
@@ -6829,6 +7006,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 
                 carBookings.push(newBooking);
+                saveCarBookings();
                 renderCarArrangementTable();
                 
                 alert('จองรถเรียบร้อย! คำขอถูกส่งไปยังแผนกจัดรถแล้ว (รหัส ' + newBooking.id + ')');
@@ -6994,6 +7172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const b = carBookings.find(x => x.id === id);
                     if (b) b.status = 'arranged'; // so they disappear from waiting list
                 });
+                saveCarBookings();
 
                 if (hasDelivery) {
                     alert(`จัดรถรวบยอดเรียบร้อย! งานนี้ถูกสร้างเป็นเลขจัดรถ ${newArrangement.id} และส่งไปยังแผนก "จัดของ" แล้ว`);
@@ -7350,6 +7529,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        function createDashboardGpsMarker(vid, lat, lng, data = {}) {
+            const colorHex = '#ef4444';
+            const icon = L.divIcon({
+                className: 'custom-vehicle-marker live-gps-marker',
+                html: `<div style="background-color: ${colorHex}; width: 18px; height: 18px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 14px ${colorHex};"></div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            const marker = L.marker([lat, lng], { icon }).addTo(dashboardMap);
+            marker.bindPopup(`<strong style="color: #1f2937;">${escapeHtml(vid)}</strong><br><span style="color: ${colorHex}; font-weight: bold;">Live GPS</span><br><small style="color: #6b7280;">${escapeHtml(formatTravelStatusDateTime(data.updatedAt) || '-')}</small><br><br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="display:inline-block; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; text-decoration: none; font-size: 12px; margin-top: 5px;"><i class="fa-solid fa-map-location-dot"></i> Google Maps</a>`);
+            marker.setPopupContent(`<strong style="color: #1f2937;">${escapeHtml(vid)}</strong><br><span style="color: ${colorHex}; font-weight: bold;">Live GPS จากมือถือ</span><br><small style="color: #6b7280;">อัปเดตล่าสุด: ${escapeHtml(formatTravelStatusDateTime(data.updatedAt) || '-')}</small><br><br><a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" style="display:inline-block; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; text-decoration: none; font-size: 12px; margin-top: 5px;"><i class="fa-solid fa-map-location-dot"></i> นำทางผ่าน Google Maps</a>`);
+            vehicleMarkers[vid] = marker;
+            return marker;
+        }
+
         // Initial invalidateSize to fix sizing issues if container not fully ready
         setTimeout(() => {
             if (dashboardMap) dashboardMap.invalidateSize();
@@ -7358,7 +7552,22 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fetch Live GPS or Simulate if unavailable
         setInterval(async () => {
             try {
-                const liveData = await window.TransportApi.listGps();
+                const gpsApiBaseUrl = window.TransportApiBaseUrl
+                    || (window.location.hostname.endsWith('github.io') ? 'https://transport-gdf8.onrender.com' : '');
+                const liveData = window.TransportApi && typeof window.TransportApi.listGps === 'function'
+                    ? await window.TransportApi.listGps()
+                    : await fetch(`${gpsApiBaseUrl}/api/gps`).then((response) => response.json());
+                if (liveData) {
+                    Object.entries(liveData).forEach(([vid, point]) => {
+                        const lat = Number(point?.lat);
+                        const lng = Number(point?.lng);
+                        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+                        if (!vehicleMarkers[vid]) {
+                            createDashboardGpsMarker(vid, lat, lng, point);
+                            dashboardMap.panTo([lat, lng]);
+                        }
+                    });
+                }
                 
                 for (let vid in vehicleMarkers) {
                     const marker = vehicleMarkers[vid];
