@@ -7268,11 +7268,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     assetCode: selectedCar?.asset_code || null,
                     sourceDatabase: selectedCar?.source_database || null
                 };
+                const selectedBookings = currentArrangeBookingIds
+                    .map((id) => carBookings.find((item) => item.id === id))
+                    .filter(Boolean);
 
                 const items = currentArrangeBookingIds.flatMap((id) => {
                     const booking = carBookings.find((item) => item.id === id);
                     return booking && Array.isArray(booking.packingList) ? booking.packingList : [];
                 }).concat(collectManualPackingItems());
+                const requiresPacking = items.length > 0 || selectedBookings.some((booking) => (
+                    booking.type === 'delivery'
+                    || booking.documentType === 'f175'
+                    || booking.documentType === 'f60'
+                ));
                 const attachedFileName = currentArrangeBookingIds.map((id) => {
                     const booking = carBookings.find((item) => item.id === id);
                     return booking && booking.deliveryNote ? booking.deliveryNote.note_no : '';
@@ -7292,7 +7300,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     arrangedCar: arrangedCarDetails,
                     packingList: items,
                     attachedFile: attachedFileName,
-                    status: 'pending_packing',
+                    status: requiresPacking ? 'pending_packing' : 'pending_approval',
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -7307,7 +7315,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 saveCarBookings();
 
-                alert(`จัดคิวรถเรียบร้อย! เลขที่จัดคิว ${newArrangement.id} ถูกส่งไปเมนูจัดของแล้ว`);
+                alert(requiresPacking
+                    ? `จัดคิวรถเรียบร้อย! เลขที่จัดคิว ${newArrangement.id} ถูกส่งไปเมนูจัดของแล้ว`
+                    : `จัดคิวรถเรียบร้อย! เลขที่จัดคิว ${newArrangement.id} ถูกส่งไปรออนุมัติเอกสารแล้ว`);
                 
                 formCarArrangement.style.display = 'none';
                 carArrangementListView.style.display = 'block';
