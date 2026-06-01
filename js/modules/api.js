@@ -1,12 +1,25 @@
 (function () {
+    function normalizeApiBaseUrl(value) {
+        return String(value || '').trim().replace(/\/+$/, '');
+    }
+
+    function readStoredApiBaseUrl() {
+        try {
+            return localStorage.getItem('tms_api_base_url');
+        } catch (error) {
+            return '';
+        }
+    }
+
+    const isGithubPages = window.location.hostname.endsWith('github.io');
     const DEFAULT_API_BASE_URL = window.location.hostname.endsWith('github.io')
         ? 'https://transport-gdf8.onrender.com'
         : '';
-    const configuredApiBaseUrl = String(
-        window.TMS_API_BASE_URL
-        || localStorage.getItem('tms_api_base_url')
-        || DEFAULT_API_BASE_URL
-    ).replace(/\/+$/, '');
+    const configuredApiCandidate = normalizeApiBaseUrl(window.TMS_API_BASE_URL) || normalizeApiBaseUrl(readStoredApiBaseUrl());
+    const isLocalApiOverride = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(configuredApiCandidate);
+    const configuredApiBaseUrl = isGithubPages && isLocalApiOverride
+        ? DEFAULT_API_BASE_URL
+        : (configuredApiCandidate || DEFAULT_API_BASE_URL);
 
     function getApiUrl(path) {
         if (/^https?:\/\//i.test(path)) return path;
