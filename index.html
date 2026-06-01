@@ -1765,10 +1765,33 @@
 
                 <section id="car-document-approval" class="view-section glass-panel">
                     <h3 class="section-subtitle"><i class="fa-solid fa-file-signature text-accent"></i> 3.4 อนุมัติเอกสาร</h3>
-                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
-                        <i class="fa-solid fa-file-circle-check fa-3x mb-3" style="opacity: 0.5;"></i>
-                        <h4>เตรียมพื้นที่สำหรับอนุมัติเอกสารจัดรถ</h4>
-                        <p>หน้านี้จะใช้ตรวจและอนุมัติเอกสาร F175, F60 และเอกสารจองรถใช้งานทั่วไป</p>
+                    <div class="glass-panel-inner mt-4">
+                        <div class="flex-between mb-3">
+                            <div>
+                                <h4><i class="fa-solid fa-clipboard-check"></i> รายการเอกสารจัดรถที่รออนุมัติ</h4>
+                                <p class="text-secondary">เอกสารจะเข้าหน้านี้หลังจากจัดของเสร็จแล้ว</p>
+                            </div>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-car-document-approval">
+                                <i class="fa-solid fa-rotate"></i> รีเฟรช
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>เลขจัดคิวรถ</th>
+                                        <th>ใบจองรถ</th>
+                                        <th>รถที่ใช้</th>
+                                        <th>ปลายทาง</th>
+                                        <th>สถานะ</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="car-document-approval-body">
+                                    <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีเอกสารรออนุมัติ</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
@@ -1788,10 +1811,30 @@
                             <div class="stat-info"><h4>พร้อมจัดรถ</h4><div class="stat-value">0</div></div>
                         </div>
                     </div>
-                    <div class="glass-panel-inner mt-4 p-5 text-center text-secondary">
-                        <i class="fa-solid fa-chart-line fa-3x mb-3" style="opacity: 0.5;"></i>
-                        <h4>Dashboard สถานะเอกสารจัดรถ</h4>
-                        <p>เตรียมไว้สำหรับดูภาพรวม F175, F60, เอกสารทั่วไป, สถานะอนุมัติ และคิวรถ</p>
+                    <div class="glass-panel-inner mt-4">
+                        <div class="flex-between mb-3">
+                            <h4><i class="fa-solid fa-list-check"></i> รายการสถานะเอกสารจัดรถ</h4>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-car-document-status">
+                                <i class="fa-solid fa-rotate"></i> รีเฟรช
+                            </button>
+                        </div>
+                        <div class="table-container">
+                            <table class="modern-table">
+                                <thead>
+                                    <tr>
+                                        <th>เลขจัดคิวรถ</th>
+                                        <th>ใบจองรถ</th>
+                                        <th>รถที่ใช้</th>
+                                        <th>ปลายทาง</th>
+                                        <th>สถานะ</th>
+                                        <th>อัปเดตล่าสุด</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="car-document-status-body">
+                                    <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ยังไม่มีเอกสารจัดรถ</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
@@ -2248,6 +2291,6 @@
         window.TMS_SUPABASE_ANON_KEY = 'sb_publishable_X4wyWpikGqQBQHSCjWN_5Q_BJ0s6cs7';
     </script>
     <script src="js/modules/api.js?v=14"></script>
-    <script src="js/app.js?v=54"></script>
+    <script src="js/app.js?v=55"></script>
 </body>
 </html>

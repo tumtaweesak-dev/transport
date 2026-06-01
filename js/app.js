@@ -6902,6 +6902,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === 9. New Car Booking Flow Logic ===
     const CAR_BOOKINGS_STORAGE_KEY = 'tms_car_bookings_v1';
+    const CAR_ARRANGEMENTS_STORAGE_KEY = 'tms_car_arrangements_v1';
 
     function loadSavedCarBookings() {
         try {
@@ -6921,6 +6922,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function loadSavedCarArrangements() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CAR_ARRANGEMENTS_STORAGE_KEY) || '[]');
+            return Array.isArray(saved) ? saved : [];
+        } catch (error) {
+            console.warn('Saved car arrangements unavailable:', error.message);
+            return [];
+        }
+    }
+
+    function saveCarArrangements() {
+        try {
+            localStorage.setItem(CAR_ARRANGEMENTS_STORAGE_KEY, JSON.stringify(carArrangements));
+        } catch (error) {
+            console.warn('Cannot save car arrangements:', error.message);
+        }
+    }
+
     let carBookings = loadSavedCarBookings();
     let carBookingCounter = carBookings.reduce((max, booking) => {
         const number = Number(String(booking?.id || '').replace(/\D/g, ''));
@@ -6932,6 +6951,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const formCarArrangement = document.getElementById('form-car-arrangement');
     const arrangementListBody = document.getElementById('car-arrangement-list-body');
     const btnBackArrangement = document.getElementById('btn-back-arrangement');
+    const carDocumentApprovalBody = document.getElementById('car-document-approval-body');
+    const carDocumentStatusBody = document.getElementById('car-document-status-body');
+    const btnRefreshCarDocumentApproval = document.getElementById('btn-refresh-car-document-approval');
+    const btnRefreshCarDocumentStatus = document.getElementById('btn-refresh-car-document-status');
     
     // Elements for Packing
     const packingListView = document.getElementById('packing-list-view');
@@ -7026,8 +7049,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- CAR ARRANGEMENT LOGIC ---
-    let carArrangements = [];
-    let arrangementCounter = 1000;
+    let carArrangements = loadSavedCarArrangements();
+    let arrangementCounter = carArrangements.reduce((max, arrangement) => {
+        const number = Number(String(arrangement?.id || '').replace(/\D/g, ''));
+        return Number.isFinite(number) ? Math.max(max, number) : max;
+    }, 1000);
     let currentArrangeBookingIds = [];
 
     const btnArrangeSelected = document.getElementById('btn-arrange-selected');
@@ -7069,6 +7095,115 @@ document.addEventListener('DOMContentLoaded', () => {
             return '<span class="badge" style="background: rgba(139, 92, 246, 0.2); color: #8b5cf6; padding: 4px 8px; border-radius: 4px;">F60</span>';
         }
         return '<span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 4px 8px; border-radius: 4px;">จองรถทั่วไป</span>';
+    }
+
+    function getCarArrangementStatusMeta(status) {
+        const map = {
+            pending_packing: { label: 'รอจัดของ', color: '#f59e0b', icon: 'fa-box-open' },
+            pending_approval: { label: 'รออนุมัติเอกสาร', color: '#6366f1', icon: 'fa-file-signature' },
+            approved: { label: 'อนุมัติแล้ว', color: '#10b981', icon: 'fa-circle-check' },
+            rejected: { label: 'ไม่อนุมัติ', color: '#ef4444', icon: 'fa-circle-xmark' },
+            completed: { label: 'เสร็จสิ้น', color: '#10b981', icon: 'fa-circle-check' }
+        };
+        return map[status] || { label: status || '-', color: '#94a3b8', icon: 'fa-circle-info' };
+    }
+
+    function renderCarArrangementStatusBadge(status) {
+        const meta = getCarArrangementStatusMeta(status);
+        return `<span class="badge" style="background: ${meta.color}22; color: ${meta.color}; padding: 4px 8px; border-radius: 999px;"><i class="fa-solid ${meta.icon}"></i> ${escapeHtml(meta.label)}</span>`;
+    }
+
+    function formatCarArrangementDate(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function collectManualPackingItems() {
+        return Array.from(document.querySelectorAll('#packing-list-body tr')).map((row) => {
+            const inputs = row.querySelectorAll('input');
+            const name = String(inputs[0]?.value || '').trim();
+            if (!name) return null;
+            const qty = Math.max(Number(inputs[1]?.value) || 1, 1);
+            const weight = Math.max(Number(inputs[2]?.value) || 0, 0);
+            return {
+                name,
+                qty,
+                weight,
+                totalWeightKg: qty * weight,
+                dim: 'ไม่ระบุ',
+                sku: '',
+                unit: 'หน่วย'
+            };
+        }).filter(Boolean);
+    }
+
+    function getArrangementBookingSummary(arrangement) {
+        return (Array.isArray(arrangement.bookingIds) ? arrangement.bookingIds : [])
+            .map((id) => {
+                const booking = carBookings.find((item) => item.id === id);
+                return booking ? `${id} (${booking.documentType?.toUpperCase?.() || booking.type || '-'})` : id;
+            })
+            .join(', ');
+    }
+
+    function renderCarDocumentApprovalTable() {
+        if (!carDocumentApprovalBody) return;
+        const pendingApprovals = carArrangements.filter((item) => item.status === 'pending_approval');
+        if (!pendingApprovals.length) {
+            carDocumentApprovalBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ไม่มีเอกสารรออนุมัติ</td></tr>';
+            return;
+        }
+        carDocumentApprovalBody.innerHTML = pendingApprovals.map((item) => `
+            <tr>
+                <td><strong>${escapeHtml(item.id)}</strong></td>
+                <td>${escapeHtml(getArrangementBookingSummary(item) || '-')}</td>
+                <td>${escapeHtml(item.arrangedCar?.plate || '-')}<br><small class="text-secondary">${escapeHtml(item.arrangedCar?.type || '-')}</small></td>
+                <td>${escapeHtml(item.destination || '-')}</td>
+                <td>${renderCarArrangementStatusBadge(item.status)}</td>
+                <td>
+                    <div class="approval-actions">
+                        <button type="button" class="btn btn-sm btn-primary" onclick="approveCarArrangement('${escapeHtml(item.id)}')">
+                            <i class="fa-solid fa-check"></i> อนุมัติ
+                        </button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="rejectCarArrangement('${escapeHtml(item.id)}')">
+                            <i class="fa-solid fa-xmark"></i> ไม่อนุมัติ
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderCarDocumentStatusTable() {
+        if (!carDocumentStatusBody) return;
+        const rows = [...carArrangements].sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+        if (!rows.length) {
+            carDocumentStatusBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">ยังไม่มีเอกสารจัดรถ</td></tr>';
+            return;
+        }
+        carDocumentStatusBody.innerHTML = rows.map((item) => `
+            <tr>
+                <td><strong>${escapeHtml(item.id)}</strong></td>
+                <td>${escapeHtml(getArrangementBookingSummary(item) || '-')}</td>
+                <td>${escapeHtml(item.arrangedCar?.plate || '-')}<br><small class="text-secondary">${escapeHtml(item.arrangedCar?.type || '-')}</small></td>
+                <td>${escapeHtml(item.destination || '-')}</td>
+                <td>${renderCarArrangementStatusBadge(item.status)}</td>
+                <td>${escapeHtml(formatCarArrangementDate(item.updatedAt || item.createdAt))}</td>
+            </tr>
+        `).join('');
+    }
+
+    function refreshCarDocumentViews() {
+        renderCarDocumentApprovalTable();
+        renderCarDocumentStatusTable();
+        const statValues = document.querySelectorAll('#car-document-status .stat-value');
+        if (statValues.length >= 3) {
+            const today = new Date().toISOString().slice(0, 10);
+            statValues[0].textContent = carArrangements.filter((item) => String(item.createdAt || '').slice(0, 10) === today).length;
+            statValues[1].textContent = carArrangements.filter((item) => item.status === 'pending_approval').length;
+            statValues[2].textContent = carArrangements.filter((item) => item.status === 'approved').length;
+        }
     }
 
     window.renderCarArrangementTable = function() {
@@ -7134,15 +7269,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     sourceDatabase: selectedCar?.source_database || null
                 };
 
-                const hasDelivery = currentArrangeBookingIds.some(id => {
-                    const b = carBookings.find(x => x.id === id);
-                    return b && b.type === 'delivery';
-                });
-
                 const items = currentArrangeBookingIds.flatMap((id) => {
                     const booking = carBookings.find((item) => item.id === id);
                     return booking && Array.isArray(booking.packingList) ? booking.packingList : [];
-                });
+                }).concat(collectManualPackingItems());
                 const attachedFileName = currentArrangeBookingIds.map((id) => {
                     const booking = carBookings.find((item) => item.id === id);
                     return booking && booking.deliveryNote ? booking.deliveryNote.note_no : '';
@@ -7162,10 +7292,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     arrangedCar: arrangedCarDetails,
                     packingList: items,
                     attachedFile: attachedFileName,
-                    status: hasDelivery ? 'pending_packing' : 'completed'
+                    status: 'pending_packing',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
                 };
                 
                 carArrangements.push(newArrangement);
+                saveCarArrangements();
 
                 // Update linked bookings
                 currentArrangeBookingIds.forEach(id => {
@@ -7174,22 +7307,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 saveCarBookings();
 
-                if (hasDelivery) {
-                    alert(`จัดรถรวบยอดเรียบร้อย! งานนี้ถูกสร้างเป็นเลขจัดรถ ${newArrangement.id} และส่งไปยังแผนก "จัดของ" แล้ว`);
-                } else {
-                    alert(`จัดรถเรียบร้อย! เลขทำรายการ ${newArrangement.id} สำหรับงานธุระการ พร้อมเดินทางไม่ต้องจัดของ`);
-                }
+                alert(`จัดคิวรถเรียบร้อย! เลขที่จัดคิว ${newArrangement.id} ถูกส่งไปเมนูจัดของแล้ว`);
                 
                 formCarArrangement.style.display = 'none';
                 carArrangementListView.style.display = 'block';
                 currentArrangeBookingIds = [];
                 if (checkAllArrangements) checkAllArrangements.checked = false;
                 formCarArrangement.reset();
+                if (packingListBody) packingListBody.innerHTML = '';
                 submitBtn.innerHTML = '<i class="fa-solid fa-clipboard-check"></i> ยืนยันการจัดรถ';
                 submitBtn.disabled = false;
                 
                 renderCarArrangementTable();
                 renderPackingTable();
+                refreshCarDocumentViews();
             }, 800);
         });
     }
@@ -7361,16 +7492,56 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const arrangement = carArrangements.find(a => a.id === currentPackBookingId);
             if (arrangement) {
-                arrangement.status = 'completed';
-                alert(`✅ การแพ็คของและการจัดเลย์เอาต์ท้ายรถเสร็จสมบูรณ์! เลขที่จัดรถ ${arrangement.id} พร้อมออกเดินทาง`);
+                arrangement.status = 'pending_approval';
+                arrangement.packedAt = new Date().toISOString();
+                arrangement.updatedAt = new Date().toISOString();
+                saveCarArrangements();
+                alert(`จัดของเสร็จแล้ว! เลขที่จัดคิว ${arrangement.id} ถูกส่งไปเมนูอนุมัติเอกสาร`);
                 
                 packingSimulatorView.style.display = 'none';
                 packingListView.style.display = 'block';
                 currentPackBookingId = null;
                 
                 renderPackingTable();
+                refreshCarDocumentViews();
             }
         });
+    }
+
+    window.approveCarArrangement = function(id) {
+        const arrangement = carArrangements.find((item) => item.id === id);
+        if (!arrangement) return;
+        const comment = prompt(`กรุณาใส่คอมเมนต์อนุมัติเอกสาร ${id}`);
+        if (comment === null) return;
+        arrangement.status = 'approved';
+        arrangement.approvalComment = comment.trim();
+        arrangement.approvedAt = new Date().toISOString();
+        arrangement.updatedAt = new Date().toISOString();
+        saveCarArrangements();
+        refreshCarDocumentViews();
+        alert(`อนุมัติเอกสาร ${id} แล้ว`);
+    };
+
+    window.rejectCarArrangement = function(id) {
+        const arrangement = carArrangements.find((item) => item.id === id);
+        if (!arrangement) return;
+        const comment = prompt(`กรุณาใส่เหตุผลไม่อนุมัติเอกสาร ${id}`);
+        if (comment === null) return;
+        arrangement.status = 'rejected';
+        arrangement.rejectionComment = comment.trim();
+        arrangement.rejectedAt = new Date().toISOString();
+        arrangement.updatedAt = new Date().toISOString();
+        saveCarArrangements();
+        refreshCarDocumentViews();
+        alert(`ไม่อนุมัติเอกสาร ${id} แล้ว`);
+    };
+
+    if (btnRefreshCarDocumentApproval) {
+        btnRefreshCarDocumentApproval.addEventListener('click', refreshCarDocumentViews);
+    }
+
+    if (btnRefreshCarDocumentStatus) {
+        btnRefreshCarDocumentStatus.addEventListener('click', refreshCarDocumentViews);
     }
 
     // === 10. Dashboard Logic ===
@@ -8682,6 +8853,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof window.loadAdminData === 'function') window.loadAdminData();
         if (typeof window.renderCarArrangementTable === 'function') window.renderCarArrangementTable();
         if (typeof window.renderPackingTable === 'function') window.renderPackingTable();
+        if (typeof refreshCarDocumentViews === 'function') refreshCarDocumentViews();
         initRouteOptimization();
         initLoadPlanning();
         renderScheduleTable();
