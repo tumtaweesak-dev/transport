@@ -16,8 +16,11 @@
         ? 'https://transport-gdf8.onrender.com'
         : '';
     const configuredApiCandidate = normalizeApiBaseUrl(window.TMS_API_BASE_URL) || normalizeApiBaseUrl(readStoredApiBaseUrl());
-    const isLocalApiOverride = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(configuredApiCandidate);
-    const configuredApiBaseUrl = isGithubPages && isLocalApiOverride
+    const isLocalApiOverride = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(configuredApiCandidate);
+    const isSameOriginOverride = configuredApiCandidate === window.location.origin
+        || configuredApiCandidate.startsWith(`${window.location.origin}/`);
+    const shouldIgnoreOverride = isGithubPages && (isLocalApiOverride || isSameOriginOverride);
+    const configuredApiBaseUrl = shouldIgnoreOverride
         ? DEFAULT_API_BASE_URL
         : (configuredApiCandidate || DEFAULT_API_BASE_URL);
 
